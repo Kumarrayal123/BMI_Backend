@@ -61,6 +61,7 @@ import patientRoutes from "./routes/patientRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import authRoutes from "./routes/authRoutes.js"; // ✅ Import Auth Routes
 import applicationRoutes from "./routes/applicationRoutes.js"; // ✅ Import App Routes
+import authProxyRoutes from "./routes/authProxyRoutes.js"; // ✅ Import Proxy Routes
 
 dotenv.config();
 
@@ -135,6 +136,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/camps", campRoutes);
 app.use("/api/auth", authRoutes); // ✅ Added Auth Routes
 app.use("/api/applications", applicationRoutes); // ✅ Added App Routes
+app.use("/api/proxy", authProxyRoutes); // ✅ Added Proxy Routes
 
 // =======================
 // Health Check
