@@ -78,8 +78,9 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
   "http://localhost:3001",
-  "https://bm-frontend-lyart.vercel.app",
+  // "https://bm-frontend-lyart.vercel.app",
   "https://attendancefrontend.vercel.app",
+  "https://bmi-application.vercel.app/",
   "https://timelyhealth.in",
   "https://www.timelyhealth.in"
 ];
