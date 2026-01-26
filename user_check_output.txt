@@ -1,0 +1,5 @@
+=== DATABASE USER LIST ===
+[1] Name: shiva | Email: shiva@gmail.com | Role: partner
+[2] Name: kiran | Email: kiran@gmail.com | Role: partner
+[3] Name: saidudlureddy | Email: saidulureddy@gmail.com | Role: partner
+[4] Name: ram | Email: ram@gmail.com | Role: user

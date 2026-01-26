@@ -404,6 +404,34 @@ router.post("/", async (req, res) => {
       finalCampId = camp._id;
     }
 
+    /* ---------- EXTRACT VITALS IF PROVIDED (from HealthForm) ---------- */
+    const vitals = {};
+    if (req.body.weight && req.body.height) {
+      const bmi = calculateBMI(req.body.weight, req.body.height);
+      vitals.weight = parseFloat(req.body.weight);
+      vitals.height = parseFloat(req.body.height);
+      vitals.bmi = parseFloat(bmi);
+      vitals.bmiCategory = getBMICategory(bmi);
+    }
+
+    // Blood Pressure
+    if (req.body.bpSystolic || req.body.bpSys) {
+      vitals.bpSys = parseFloat(req.body.bpSystolic || req.body.bpSys);
+    }
+    if (req.body.bpDiastolic || req.body.bpDia) {
+      vitals.bpDia = parseFloat(req.body.bpDiastolic || req.body.bpDia);
+    }
+
+    // Sugar (Handle both 'sugar' and 'rbs' from HealthForm)
+    if (req.body.sugar || req.body.rbs) {
+      vitals.sugar = parseFloat(req.body.sugar || req.body.rbs);
+      vitals.sugarType = req.body.sugarType || (req.body.rbs ? "Random" : "Fasting");
+    }
+
+    if (Object.keys(vitals).length > 0) {
+      vitals.updatedAt = new Date();
+    }
+
     const patient = await Patient.create({
       name,
       age,
@@ -412,7 +440,7 @@ router.post("/", async (req, res) => {
       address,
       campId: finalCampId,
       tests: [],
-      vitals: {}
+      vitals: vitals
     });
 
     res.status(201).json(patient);
@@ -477,6 +505,7 @@ router.post("/:id/test", async (req, res) => {
     }
 
     if (type === "bp") {
+      console.log(`Storing BP: Sys ${newTest.value}, Dia ${newTest.value2}`);
       patient.vitals.bpSys = newTest.value;
       patient.vitals.bpDia = newTest.value2;
     }

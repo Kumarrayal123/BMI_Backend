@@ -9,8 +9,10 @@ export const register = async (req, res) => {
     try {
         const { name, email, password, mobile, address, role, clinicName } = req.body;
 
+        const normalizedEmail = email.toLowerCase().trim();
+
         // Check existing user
-        const existingUser = await User.findOne({ email });
+        const existingUser = await User.findOne({ email: normalizedEmail });
         if (existingUser) {
             return res.status(400).json({ message: "User already exists with this email" });
         }
@@ -55,11 +57,19 @@ export const register = async (req, res) => {
    ========================================= */
 export const login = async (req, res) => {
     try {
+        console.log("Login Request Body:", req.body);
         const { email, password } = req.body;
 
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email and password are required" });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
         // Find user
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email: normalizedEmail });
         if (!user) {
+            console.log(`User not found: ${normalizedEmail}`);
             return res.status(404).json({ message: "User not found" });
         }
 
