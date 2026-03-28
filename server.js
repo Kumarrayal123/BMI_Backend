@@ -1,17 +1,32 @@
+// import cors from "cors";
+// import dotenv from "dotenv";
+// import express from "express";
+// import mongoose from "mongoose";
+// import path from "path";
+// import { fileURLToPath } from "url";
+
+// import campRoutes from "./routes/campRoutes.js";
+// import patientRoutes from "./routes/patientRoutes.js";
+// import reportRoutes from "./routes/reportRoutes.js";
+// import authRoutes from "./routes/authRoutes.js";
+// import applicationRoutes from "./routes/applicationRoutes.js";
+// import authProxyRoutes from "./routes/authProxyRoutes.js";
+// import chatRoutes from "./routes/chatRoutes.js";
+
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
-
-import campRoutes from "./routes/campRoutes.js";
-import patientRoutes from "./routes/patientRoutes.js";
-import reportRoutes from "./routes/reportRoutes.js";
-import authRoutes from "./routes/authRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import authProxyRoutes from "./routes/authProxyRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import campRoutes from "./routes/campRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import patientRoutes from "./routes/patientRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
+
 
 dotenv.config();
 
