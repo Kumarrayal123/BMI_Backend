@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
+import axios from "axios";
 
 /* =========================================
    REGISTER
@@ -100,6 +101,49 @@ export const login = async (req, res) => {
 
     } catch (err) {
         console.error("Login Error:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+/* =========================================
+   UNIFIED LOGIN (Avoids frontend Promise.any 404 errors)
+   ========================================= */
+export const unifiedLogin = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ message: "Email and password required" });
+        
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // 1. Try Local Partner/User
+        const user = await User.findOne({ email: normalizedEmail });
+        if (user) {
+            const isPasswordCorrect = await bcrypt.compare(password, user.password);
+            if (isPasswordCorrect) {
+                const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || "supersecretkey123", { expiresIn: "1d" });
+                return res.status(200).json({ type: "partner", data: { message: "Login successful", token, user: { id: user._id, name: user.name, email: user.email, role: user.role, clinicName: user.clinicName } } });
+            }
+        }
+
+        const ATTENDANCE_BACKEND = "https://api.timelyhealth.in/api";
+
+        // 2. Try Employee
+        try {
+            const empRes = await axios.post(`${ATTENDANCE_BACKEND}/employees/login`, { email, password });
+            if (empRes.data) return res.status(200).json({ type: "employee", data: empRes.data });
+        } catch (e) { /* ignore */ }
+
+        // 3. Try Admin
+        try {
+            const admRes = await axios.post(`${ATTENDANCE_BACKEND}/admin/login`, { email, password });
+            if (admRes.data) return res.status(200).json({ type: "admin", data: admRes.data });
+        } catch (e) { /* ignore */ }
+
+        // If all fail
+        return res.status(401).json({ message: "Invalid Email or Password" });
+        
+    } catch (err) {
+        console.error("Unified Login Error:", err);
         res.status(500).json({ message: "Internal server error" });
     }
 };
