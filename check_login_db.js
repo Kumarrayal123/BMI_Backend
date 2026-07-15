@@ -8,11 +8,19 @@ dotenv.config();
 async function checkUsers() {
     try {
         await mongoose.connect(process.env.MONGODB_URI);
+        
+        // Migrate existing "user" roles to "partner"
+        const updateResult = await User.updateMany(
+            { role: "user" },
+            { $set: { role: "partner", clinicName: "BIM Clinic" } }
+        );
+        console.log("Migration result:", updateResult);
+
         const users = await User.find({});
 
         let output = "=== DATABASE USER LIST ===\n";
         users.forEach((u, i) => {
-            output += `[${i + 1}] Name: ${u.name} | Email: ${u.email} | Role: ${u.role}\n`;
+            output += `[${i + 1}] ${JSON.stringify(u)}\n`;
         });
 
         fs.writeFileSync("user_check_output.txt", output);

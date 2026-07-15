@@ -1,5 +1,6 @@
 === DATABASE USER LIST ===
-[1] Name: shiva | Email: shiva@gmail.com | Role: partner
-[2] Name: kiran | Email: kiran@gmail.com | Role: partner
-[3] Name: saidudlureddy | Email: saidulureddy@gmail.com | Role: partner
-[4] Name: ram | Email: ram@gmail.com | Role: user
+[1] {"_id":"69562b0a3d7a18bde1cbc9d6","name":"shiva","email":"shiva@gmail.com","password":"$2b$12$8FDl.gAdQaGBcW149SUaue8fK0h74VcmjVVzBUKTvmlbGNLgytVHi","mobile":"9087654332","address":"Hyderabad","role":"partner","clinicName":"shivaram clinic","createdAt":"2026-01-01T08:06:34.264Z","updatedAt":"2026-06-19T09:28:50.884Z","__v":0,"otpAttempts":0,"resetPasswordOTP":"956788","resetPasswordOTPExpiry":"2026-06-19T09:38:50.881Z"}
+[2] {"_id":"69562c973d7a18bde1cbc9da","name":"kiran","email":"kiran@gmail.com","password":"$2b$12$bMOpOSXVyt/IGBEyNhQKsOSaqJjkMXsmMn1.7dSUb5UI4kS0rIGtG","mobile":"9087653423","address":"Hyderabad","role":"partner","clinicName":"kiran ent","createdAt":"2026-01-01T08:13:11.765Z","updatedAt":"2026-01-01T08:13:11.765Z","__v":0}
+[3] {"_id":"69562dbe3d7a18bde1cbc9de","name":"saidudlureddy","email":"saidulureddy@gmail.com","password":"$2b$12$ObsjV3/R1nNXDyPkE0bzyeydkKqwA6fzEZCHDzwE8RezKa.26CVkK","mobile":"9087563432","address":"Hyderabad","role":"partner","clinicName":"Serum Labs","createdAt":"2026-01-01T08:18:06.192Z","updatedAt":"2026-01-01T08:18:06.192Z","__v":0}
+[4] {"_id":"695645d3e218eb74c5deea5f","name":"ram","email":"ram@gmail.com","password":"$2b$12$U2wIXbMnmSYDxW83yCqC/.iOQQ8hmLfpWZqAh05YrlVUPom2gJzk2","mobile":"9087564332","address":"Hyderabad","role":"partner","createdAt":"2026-01-01T10:00:51.545Z","updatedAt":"2026-06-26T09:50:19.629Z","__v":0,"clinicName":"BIM Clinic"}
+[5] {"_id":"6a3e18a5385111a722d608ec","name":"pavan","email":"pavan@gmail.com","password":"$2b$12$PfaJFrxvU4yO0Ltp8d6OHelEbrR4GrzntJmNRsT91MIU8gKp0tRn6","mobile":"8688860223","address":"Hyderabad","role":"partner","createdAt":"2026-06-26T06:13:57.835Z","updatedAt":"2026-06-26T09:50:19.629Z","__v":0,"clinicName":"BIM Clinic"}
