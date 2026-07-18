@@ -109,7 +109,11 @@ updateCampByPartner,
 getPartnerCreatedCamps,
 getAssignedCamps,
 deleteCampByAdmin,
-deleteCampByPartner
+deleteCampByPartner,
+hideCamp,
+unhideCamp,
+archiveOldCamps,
+getArchivedCamps
 } from "../controllers/campController.js";
 
 const router=express.Router();
@@ -128,4 +132,15 @@ router.put("/update-camp/:partnerId/:campId", updateCampByPartner);
 router.delete("/delete-camp/:campId", deleteCampByAdmin);
 // PARTNER
 router.delete("/delete-camp/:partnerId/:campId", deleteCampByPartner);
+// Hide/Archive camp
+router.put('/hide-camp/:campId', hideCamp);
+
+// Unhide/Restore camp
+router.put('/unhide-camp/:campId', unhideCamp);
+
+// Auto-archive old camps
+router.post('/archive-old-camps', archiveOldCamps);
+
+// Get archived camps
+router.get('/archived-camps', getArchivedCamps);
 export default router;

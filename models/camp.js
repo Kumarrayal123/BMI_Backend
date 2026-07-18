@@ -169,7 +169,6 @@
 
 // export default mongoose.model("Camp", campSchema);
 
-
 import mongoose from "mongoose";
 
 const campSchema = new mongoose.Schema({
@@ -212,7 +211,7 @@ const campSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.Mixed
     }],
 
-    // 👇 ADD THIS - Partners field (Mixed - supports both ID and String)
+    // Partners field (Mixed - supports both ID and String)
     partners: [{
         type: mongoose.Schema.Types.Mixed
     }],
@@ -234,9 +233,16 @@ const campSchema = new mongoose.Schema({
         }
     },
 
+    // ✅ isHidden field - for archiving
+    isHidden: {
+        type: Boolean,
+        default: false
+    },
+
+    // ✅ status - "archived" added to enum
     status: {
         type: String,
-        enum: ["active", "completed", "cancelled"],
+        enum: ["active", "completed", "cancelled", "archived"],
         default: "active"
     }
 

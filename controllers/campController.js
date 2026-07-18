@@ -1547,3 +1547,175 @@ export const deleteCampByPartner = async (req, res) => {
     });
   }
 };
+
+
+/* ===========================================================
+   HIDE/ARCHIVE CAMP
+=========================================================== */
+export const hideCamp = async (req, res) => {
+  try {
+    const { campId } = req.params;
+    const { isHidden } = req.body;
+
+    console.log(`🔒 Hiding camp: ${campId}, isHidden: ${isHidden}`);
+
+    const camp = await Camp.findById(campId);
+
+    if (!camp) {
+      return res.status(404).json({
+        success: false,
+        message: "Camp not found"
+      });
+    }
+
+    // ✅ ONLY update isHidden - DO NOT change status
+    camp.isHidden = isHidden !== undefined ? isHidden : true;
+
+    await camp.save();
+
+    console.log(`✅ Camp ${campId} ${camp.isHidden ? 'hidden' : 'unhidden'} successfully`);
+
+    res.status(200).json({
+      success: true,
+      message: camp.isHidden ? "Camp archived successfully" : "Camp restored successfully",
+      data: camp
+    });
+
+  } catch (error) {
+    console.log("HIDE CAMP ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/* ===========================================================
+   UNHIDE/RESTORE CAMP
+=========================================================== */
+export const unhideCamp = async (req, res) => {
+  try {
+    const { campId } = req.params;
+
+    console.log(`🔓 Unhiding camp: ${campId}`);
+
+    const camp = await Camp.findById(campId);
+
+    if (!camp) {
+      return res.status(404).json({
+        success: false,
+        message: "Camp not found"
+      });
+    }
+
+    // ✅ ONLY set isHidden to false - DO NOT change status
+    camp.isHidden = false;
+
+    await camp.save();
+
+    console.log(`✅ Camp ${campId} restored successfully`);
+
+    res.status(200).json({
+      success: true,
+      message: "Camp restored successfully",
+      data: camp
+    });
+
+  } catch (error) {
+    console.log("UNHIDE CAMP ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/* ===========================================================
+   AUTO-ARCHIVE OLD CAMPS (10+ days)
+=========================================================== */
+export const archiveOldCamps = async (req, res) => {
+  try {
+    const { days = 10 } = req.body;
+
+    console.log(`📦 Archiving camps older than ${days} days`);
+
+    const now = new Date();
+    const cutoffDate = new Date(now);
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    console.log(`Cutoff date: ${cutoffDate.toISOString()}`);
+
+    // Find camps older than cutoff date that are not already hidden
+    const oldCamps = await Camp.find({
+      $or: [
+        { createdAt: { $lt: cutoffDate } },
+        { date: { $lt: cutoffDate.toISOString().split('T')[0] } }
+      ],
+      isHidden: { $ne: true }
+    });
+
+    console.log(`Found ${oldCamps.length} camps older than ${days} days`);
+
+    let archivedCount = 0;
+    const archivedCamps = [];
+
+    for (const camp of oldCamps) {
+      try {
+        // ✅ ONLY set isHidden to true - DO NOT change status
+        camp.isHidden = true;
+        await camp.save();
+        archivedCount++;
+        archivedCamps.push({
+          id: camp._id,
+          name: camp.name,
+          date: camp.date || camp.createdAt
+        });
+        console.log(`✅ Archived: ${camp.name}`);
+      } catch (err) {
+        console.error(`❌ Failed to archive ${camp.name}:`, err.message);
+      }
+    }
+
+    console.log(`✅ Auto-archived ${archivedCount} camps`);
+
+    res.status(200).json({
+      success: true,
+      message: `${archivedCount} camps auto-archived successfully`,
+      archivedCount,
+      archivedCamps
+    });
+
+  } catch (error) {
+    console.log("ARCHIVE OLD CAMPS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/* ===========================================================
+   GET HIDDEN/ARCHIVED CAMPS
+=========================================================== */
+export const getArchivedCamps = async (req, res) => {
+  try {
+    const camps = await Camp.find({ isHidden: true })
+      .populate("assignedPartner", "name clinicName role")
+      .populate({ path: "createdBy", model: "User", select: "name clinicName role" })
+      .populate({ path: "partners", model: "User", select: "name clinicName role" })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: camps.length,
+      data: camps
+    });
+
+  } catch (error) {
+    console.log("GET ARCHIVED CAMPS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

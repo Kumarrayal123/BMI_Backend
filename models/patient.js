@@ -102,11 +102,19 @@ const testSchema = new mongoose.Schema({
 ----------------------------- */
 const patientSchema = new mongoose.Schema(
   {
+    // ✅ SALUTATION (NEW FIELD)
+    salutation: {
+      type: String,
+      enum: ["Mr.", "Mrs.", "Ms.", "Dr.", "M/s", "Mast.", "Miss", "N/A", ""],
+      default: ""
+    },
+    
     name: String,
     age: Number,
     gender: String,
     contact: String,
     address: String,
+    
     // ✅ CAMP RELATION (IMPORTANT)
     campId: {
       type: mongoose.Schema.Types.ObjectId,

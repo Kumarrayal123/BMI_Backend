@@ -310,12 +310,9 @@
 
 // export default router;
 
-
 import express from "express";
 import Camp from "../models/camp.js";
 import Patient from "../models/patient.js";
-
-
 
 const router = express.Router();
 
@@ -375,11 +372,12 @@ router.get("/:id", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  3️⃣ CREATE PATIENT (campId FIXED ✅)
+  3️⃣ CREATE PATIENT (WITH SALUTATION ✅)
 ------------------------------------------------------ */
 router.post("/", async (req, res) => {
   try {
     const {
+      salutation,  // ✅ ADDED - Salutation field
       name,
       age,
       gender,
@@ -388,6 +386,20 @@ router.post("/", async (req, res) => {
       campId,
       campName
     } = req.body;
+
+    // ✅ Validate required fields
+    if (!name) {
+      return res.status(400).json({ error: "Patient name is required" });
+    }
+    if (!age) {
+      return res.status(400).json({ error: "Age is required" });
+    }
+    if (!contact) {
+      return res.status(400).json({ error: "Contact number is required" });
+    }
+    if (!address) {
+      return res.status(400).json({ error: "Address is required" });
+    }
 
     let finalCampId = campId;
 
@@ -432,7 +444,9 @@ router.post("/", async (req, res) => {
       vitals.updatedAt = new Date();
     }
 
+    // ✅ Create patient with salutation
     const patient = await Patient.create({
+      salutation: salutation || "",  // ✅ ADDED
       name,
       age,
       gender,
@@ -451,11 +465,51 @@ router.post("/", async (req, res) => {
   }
 });
 
+/* -----------------------------------------------------
+  4️⃣ UPDATE PATIENT (WITH SALUTATION ✅)
+------------------------------------------------------ */
+router.put("/:id", async (req, res) => {
+  try {
+    const {
+      salutation,  // ✅ ADDED
+      name,
+      age,
+      gender,
+      contact,
+      address,
+      campId
+    } = req.body;
 
+    const patient = await Patient.findById(req.params.id);
+    
+    if (!patient) {
+      return res.status(404).json({ error: "Patient not found" });
+    }
 
+    // ✅ Update fields including salutation
+    if (salutation !== undefined) patient.salutation = salutation;
+    if (name) patient.name = name;
+    if (age) patient.age = age;
+    if (gender) patient.gender = gender;
+    if (contact) patient.contact = contact;
+    if (address) patient.address = address;
+    if (campId) patient.campId = campId;
+
+    await patient.save();
+
+    res.json({
+      success: true,
+      message: "Patient updated successfully",
+      data: patient
+    });
+  } catch (err) {
+    console.error("UPDATE PATIENT ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 /* -----------------------------------------------------
-  4️⃣ ADD TEST (WEIGHT / HEIGHT / SUGAR / BP)
+  5️⃣ ADD TEST (WEIGHT / HEIGHT / SUGAR / BP)
 ------------------------------------------------------ */
 router.post("/:id/test", async (req, res) => {
   try {
@@ -533,7 +587,7 @@ router.post("/:id/test", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  5️⃣ GET ALL TESTS OF PATIENT
+  6️⃣ GET ALL TESTS OF PATIENT
 ------------------------------------------------------ */
 router.get("/:id/tests", async (req, res) => {
   try {
@@ -549,7 +603,7 @@ router.get("/:id/tests", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  6️⃣ DELETE PATIENT
+  7️⃣ DELETE PATIENT
 ------------------------------------------------------ */
 router.delete("/:id", async (req, res) => {
   try {
@@ -561,7 +615,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  7️⃣ VERIFY TEST (DOCTOR)
+  8️⃣ VERIFY TEST (DOCTOR)
 ------------------------------------------------------ */
 router.patch("/:id/tests/:testId/verify", async (req, res) => {
   try {
