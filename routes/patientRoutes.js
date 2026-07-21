@@ -352,13 +352,13 @@ router.get("/", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  2️⃣ GET SINGLE PATIENT
+  2️⃣ GET SINGLE PATIENT (WITH CAMP DETAILS ✅)
 ------------------------------------------------------ */
 router.get("/:id", async (req, res) => {
   try {
     const patient = await Patient.findById(req.params.id).populate(
       "campId",
-      "name location"
+      "name location address date time status"
     );
 
     if (!patient) {
@@ -377,7 +377,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const {
-      salutation,  // ✅ ADDED - Salutation field
+      salutation,
       name,
       age,
       gender,
@@ -387,7 +387,6 @@ router.post("/", async (req, res) => {
       campName
     } = req.body;
 
-    // ✅ Validate required fields
     if (!name) {
       return res.status(400).json({ error: "Patient name is required" });
     }
@@ -416,7 +415,6 @@ router.post("/", async (req, res) => {
       finalCampId = camp._id;
     }
 
-    /* ---------- EXTRACT VITALS IF PROVIDED (from HealthForm) ---------- */
     const vitals = {};
     if (req.body.weight && req.body.height) {
       const bmi = calculateBMI(req.body.weight, req.body.height);
@@ -426,7 +424,6 @@ router.post("/", async (req, res) => {
       vitals.bmiCategory = getBMICategory(bmi);
     }
 
-    // Blood Pressure
     if (req.body.bpSystolic || req.body.bpSys) {
       vitals.bpSys = parseFloat(req.body.bpSystolic || req.body.bpSys);
     }
@@ -434,7 +431,6 @@ router.post("/", async (req, res) => {
       vitals.bpDia = parseFloat(req.body.bpDiastolic || req.body.bpDia);
     }
 
-    // Sugar (Handle both 'sugar' and 'rbs' from HealthForm)
     if (req.body.sugar || req.body.rbs) {
       vitals.sugar = parseFloat(req.body.sugar || req.body.rbs);
       vitals.sugarType = req.body.sugarType || (req.body.rbs ? "Random" : "Fasting");
@@ -444,9 +440,8 @@ router.post("/", async (req, res) => {
       vitals.updatedAt = new Date();
     }
 
-    // ✅ Create patient with salutation
     const patient = await Patient.create({
-      salutation: salutation || "",  // ✅ ADDED
+      salutation: salutation || "",
       name,
       age,
       gender,
@@ -471,7 +466,7 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const {
-      salutation,  // ✅ ADDED
+      salutation,
       name,
       age,
       gender,
@@ -486,7 +481,6 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Patient not found" });
     }
 
-    // ✅ Update fields including salutation
     if (salutation !== undefined) patient.salutation = salutation;
     if (name) patient.name = name;
     if (age) patient.age = age;
@@ -510,8 +504,9 @@ router.put("/:id", async (req, res) => {
 
 /* -----------------------------------------------------
   5️⃣ ADD TEST (WEIGHT / HEIGHT / SUGAR / BP)
+  ✅ ROUTE CHANGE - "/test" se "/tests" karein
 ------------------------------------------------------ */
-router.post("/:id/test", async (req, res) => {
+router.post("/:id/tests", async (req, res) => {
   try {
     const patient = await Patient.findById(req.params.id);
     if (!patient) {
@@ -577,11 +572,13 @@ router.post("/:id/test", async (req, res) => {
     await patient.save();
 
     res.json({
+      success: true,
       message: "Test added successfully",
       vitals: patient.vitals
     });
 
   } catch (err) {
+    console.error("❌ ADD TEST ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
