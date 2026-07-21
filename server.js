@@ -26,6 +26,9 @@ import campRoutes from "./routes/campRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import patientRoutes from "./routes/patientRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import dns from "dns";
+
+
 
 
 dotenv.config();
@@ -39,6 +42,12 @@ const __dirname = path.dirname(__filename);
 // ======================================================
 // 🛡️ MIDDLEWARES
 // ======================================================
+
+// ✅ Use Google DNS
+dns.setServers([
+  "8.8.8.8",
+  "8.8.4.4"
+]);
 
 // 1. Parser
 app.use(express.json());
@@ -58,7 +67,8 @@ const allowedOrigins = [
   "https://attendancefrontend.vercel.app",
   "https://bmi-application.vercel.app",
   "https://timelyhealth.in",
-  "https://www.timelyhealth.in"
+  "https://www.timelyhealth.in",
+  "http://62.72.29.27:3041"
 ];
 
 app.use(cors({
