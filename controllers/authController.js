@@ -238,6 +238,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
+import Volunteer from "../models/volunteer.js";
 import axios from "axios";
 
 /* =========================================
@@ -360,6 +361,45 @@ export const unifiedLogin = async (req, res) => {
         // 1️⃣ PEHLE DATABASE MEIN CHECK KARO (Sabse Important)
         // ============================================
         const user = await User.findOne({ email: normalizedEmail });
+        
+        if (!user) {
+            const volunteer = await Volunteer.findOne({ email: normalizedEmail });
+            if (volunteer) {
+                let isPasswordCorrect = false;
+                if (volunteer.password.startsWith("$2a$") || volunteer.password.startsWith("$2b$")) {
+                    isPasswordCorrect = await bcrypt.compare(password, volunteer.password);
+                } else {
+                    isPasswordCorrect = password === volunteer.password;
+                }
+
+                if (isPasswordCorrect) {
+                    const token = jwt.sign(
+                        { id: volunteer._id, role: volunteer.role || "volunteer" },
+                        process.env.JWT_SECRET || "supersecretkey123",
+                        { expiresIn: "1d" }
+                    );
+                    
+                    console.log("✅ DATABASE VOLUNTEER LOGIN SUCCESS:", volunteer.email, "Role: volunteer");
+                    
+                    return res.status(200).json({
+                        type: "volunteer",
+                        data: {
+                            message: "Login successful",
+                            token,
+                            volunteer: {
+                                id: volunteer._id,
+                                name: volunteer.name,
+                                email: volunteer.email,
+                                role: volunteer.role || "volunteer",
+                                phone: volunteer.phone,
+                                address: volunteer.address,
+                                gender: volunteer.gender
+                            }
+                        }
+                    });
+                }
+            }
+        }
         
         if (user) {
             const isPasswordCorrect = await bcrypt.compare(password, user.password);

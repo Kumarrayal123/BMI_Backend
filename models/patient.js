@@ -94,7 +94,26 @@ const testSchema = new mongoose.Schema({
   date: {
     type: Date,
     default: Date.now
-  }
+  },
+  doctorVerification: {
+    status: { type: String, enum: ['pending', 'approved'], default: 'pending' },
+    approvedBy: { type: String, default: null },
+    approvedAt: { type: Date }
+  },
+  eyeVisionLeft: Number,
+  eyeVisionRight: Number,
+  eyePressureLeft: Number,
+  eyePressureRight: Number,
+  eyeColorVision: String,
+  eyeCataract: String,
+  eyeGlaucoma: String,
+  hemoglobin: Number,
+  whiteBloodCells: Number,
+  platelets: Number,
+  cholesterol: Number,
+  triglycerides: Number,
+  hba1c: Number,
+  bmi: Number
 });
 
 /* -----------------------------

@@ -513,7 +513,28 @@ router.post("/:id/tests", async (req, res) => {
       return res.status(404).json({ error: "Patient not found" });
     }
 
-    const { type, value, value2, sugarType } = req.body;
+    const {
+      type,
+      value,
+      value2,
+      sugarType,
+      unit,
+      doctorVerification,
+      eyeVisionLeft,
+      eyeVisionRight,
+      eyePressureLeft,
+      eyePressureRight,
+      eyeColorVision,
+      eyeCataract,
+      eyeGlaucoma,
+      hemoglobin,
+      whiteBloodCells,
+      platelets,
+      cholesterol,
+      triglycerides,
+      hba1c,
+      bmi
+    } = req.body;
 
     if (!type || value === undefined) {
       return res.status(400).json({ error: "Invalid test data" });
@@ -522,23 +543,51 @@ router.post("/:id/tests", async (req, res) => {
     const newTest = {
       type,
       value: parseFloat(value),
-      date: new Date()
+      date: new Date(),
+      doctorVerification: doctorVerification || { status: "pending" }
     };
 
-    if (type === "bp") {
-      if (!value2) {
-        return res.status(400).json({ error: "Diastolic value required" });
-      }
-      newTest.value2 = parseInt(value2);
-      newTest.unit = "mmHg";
+    if (value2 !== undefined && value2 !== null && value2 !== "") {
+      newTest.value2 = parseFloat(value2);
+    }
+    if (sugarType) newTest.sugarType = sugarType;
+    if (unit) newTest.unit = unit;
+
+    // Set fallback units based on type if not provided
+    if (!newTest.unit) {
+      if (type === "bp") newTest.unit = "mmHg";
+      if (type === "weight") newTest.unit = "kg";
+      if (type === "height") newTest.unit = "cm";
+      if (type === "sugar") newTest.unit = "mg/dL";
+      if (type === "temperature") newTest.unit = "°F";
+      if (type === "heart_rate") newTest.unit = "bpm";
+      if (type === "oxygen") newTest.unit = "%";
+      if (type === "eye_exam") newTest.unit = "exam";
+      if (type === "blood_test") newTest.unit = "panel";
+      if (type === "full_body_checkup") newTest.unit = "checkup";
+      if (type === "general_checkup") newTest.unit = "checkup";
     }
 
-    if (type === "weight") newTest.unit = "kg";
-    if (type === "height") newTest.unit = "cm";
-    if (type === "sugar") {
-      newTest.unit = "mg/dL";
-      newTest.sugarType = sugarType || "Random";
+    if (type === "bp" && !newTest.value2) {
+      return res.status(400).json({ error: "Diastolic value required" });
     }
+
+    // Copy custom fields if provided
+    if (eyeVisionLeft !== undefined && eyeVisionLeft !== null && eyeVisionLeft !== "") newTest.eyeVisionLeft = parseFloat(eyeVisionLeft);
+    if (eyeVisionRight !== undefined && eyeVisionRight !== null && eyeVisionRight !== "") newTest.eyeVisionRight = parseFloat(eyeVisionRight);
+    if (eyePressureLeft !== undefined && eyePressureLeft !== null && eyePressureLeft !== "") newTest.eyePressureLeft = parseFloat(eyePressureLeft);
+    if (eyePressureRight !== undefined && eyePressureRight !== null && eyePressureRight !== "") newTest.eyePressureRight = parseFloat(eyePressureRight);
+    if (eyeColorVision) newTest.eyeColorVision = eyeColorVision;
+    if (eyeCataract) newTest.eyeCataract = eyeCataract;
+    if (eyeGlaucoma) newTest.eyeGlaucoma = eyeGlaucoma;
+
+    if (hemoglobin !== undefined && hemoglobin !== null && hemoglobin !== "") newTest.hemoglobin = parseFloat(hemoglobin);
+    if (whiteBloodCells !== undefined && whiteBloodCells !== null && whiteBloodCells !== "") newTest.whiteBloodCells = parseFloat(whiteBloodCells);
+    if (platelets !== undefined && platelets !== null && platelets !== "") newTest.platelets = parseFloat(platelets);
+    if (cholesterol !== undefined && cholesterol !== null && cholesterol !== "") newTest.cholesterol = parseFloat(cholesterol);
+    if (triglycerides !== undefined && triglycerides !== null && triglycerides !== "") newTest.triglycerides = parseFloat(triglycerides);
+    if (hba1c !== undefined && hba1c !== null && hba1c !== "") newTest.hba1c = parseFloat(hba1c);
+    if (bmi !== undefined && bmi !== null && bmi !== "") newTest.bmi = parseFloat(bmi);
 
     patient.tests.push(newTest);
 
@@ -550,7 +599,7 @@ router.post("/:id/tests", async (req, res) => {
 
     if (type === "sugar") {
       patient.vitals.sugar = newTest.value;
-      patient.vitals.sugarType = newTest.sugarType;
+      patient.vitals.sugarType = newTest.sugarType || sugarType || "Random";
     }
 
     if (type === "bp") {
@@ -562,9 +611,9 @@ router.post("/:id/tests", async (req, res) => {
     /* ---------- AUTO BMI ---------- */
     const { weight, height } = patient.vitals;
     if (weight && height) {
-      const bmi = calculateBMI(weight, height);
-      patient.vitals.bmi = parseFloat(bmi);
-      patient.vitals.bmiCategory = getBMICategory(bmi);
+      const bmiVal = calculateBMI(weight, height);
+      patient.vitals.bmi = parseFloat(bmiVal);
+      patient.vitals.bmiCategory = getBMICategory(bmiVal);
     }
 
     patient.vitals.updatedAt = new Date();

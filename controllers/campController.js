@@ -1390,14 +1390,18 @@ export const getAssignedCamps = async (req, res) => {
 /* ===========================================================
    GET ALL CAMPS
 =========================================================== */
+
 export const getAllCamps = async (req, res) => {
   try {
-    const camps = await Camp.find()
-      .populate("assignedPartner", "name clinicName role")
-      .populate({ path: "createdBy", model: "User", select: "name clinicName role" })
-      .populate({ path: "partners", model: "User", select: "name clinicName role" })
-      .sort({ createdAt: -1 });
+    console.log("🔄 Fetching all camps...");
+    
+    // ✅ Simple find without populate to avoid CastError
+    const camps = await Camp.find({})
+      .sort({ createdAt: -1 })
+      .lean();
 
+    console.log(`✅ Found ${camps.length} camps`);
+    
     res.status(200).json({
       success: true,
       count: camps.length,
@@ -1405,7 +1409,7 @@ export const getAllCamps = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("GET ALL CAMPS ERROR:", error);
+    console.log("❌ GET ALL CAMPS ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
