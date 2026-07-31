@@ -603,3 +603,40 @@ export const updatePartner = async (req, res) => {
         });
     }
 };
+
+
+// Delete Partner
+export const deletePartner = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const partner = await User.findById(id);
+
+    if (!partner) {
+      return res.status(404).json({
+        success: false,
+        message: "Partner not found",
+      });
+    }
+
+    if (partner.role !== "partner") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a partner",
+      });
+    }
+
+    await User.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Partner deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error deleting partner",
+      error: error.message,
+    });
+  }
+};

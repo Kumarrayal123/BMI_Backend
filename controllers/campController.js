@@ -1356,12 +1356,14 @@ export const getAssignedCamps = async (req, res) => {
 
     let queryConditions = [
       { assignedPartner: partnerId },
-      { partners: partnerId }
+      { partners: partnerId },
+      { createdBy: partnerId }
     ];
     if (mongoose.Types.ObjectId.isValid(partnerId) && String(partnerId).length === 24) {
       const objId = new mongoose.Types.ObjectId(partnerId);
       queryConditions.push({ assignedPartner: objId });
       queryConditions.push({ partners: objId });
+      queryConditions.push({ createdBy: objId });
     }
 
     const camps = await Camp.find({

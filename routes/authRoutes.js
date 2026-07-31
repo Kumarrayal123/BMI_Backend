@@ -1,6 +1,6 @@
 import express from "express";
 import { login, register, getAllPartners, unifiedLogin,
-    updatePartner
+    updatePartner, deletePartner
 
  } from "../controllers/authController.js";
 
@@ -12,4 +12,6 @@ router.post("/unified-login", unifiedLogin);
 router.get("/partners", getAllPartners);
 router.put("/partner/:id", updatePartner);
 router.put("/update-partner/:id", updatePartner);
+// Delete Partner
+router.delete("/partner/:id", deletePartner);
 export default router;
