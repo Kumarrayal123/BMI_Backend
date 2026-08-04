@@ -27,7 +27,7 @@ import chatRoutes from "./routes/chatRoutes.js";
 import patientRoutes from "./routes/patientRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import volunteerRoutes from "./routes/volunteerRoutes.js";
-import teamRoutes from "./routes/teamRoutes.js";
+import campMembersRoutes from "./routes/campMembersRoutes.js";
 import dns from "dns";
 
 
@@ -105,7 +105,7 @@ app.use("/api/applications", applicationRoutes);
 app.use("/api/proxy", authProxyRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/volunteers", volunteerRoutes);
-app.use("/api/teams", teamRoutes);
+app.use("/api/camp-members", campMembersRoutes);
 // Home
 app.get("/", (req, res) => res.json({ message: "BIM API Running" }));
 

@@ -16,19 +16,25 @@ const userSchema = new mongoose.Schema(
         },
         password: {
             type: String,
-            required: true
+            required: function () {
+                return this.role === "partner" || this.role === "user";
+            }
         },
         mobile: {
             type: String,
-            required: true
+            required: function () {
+                return this.role === "partner" || this.role === "user";
+            }
         },
         address: {
             type: String,
-            required: true
+            required: function () {
+                return this.role === "partner" || this.role === "user";
+            }
         },
         role: {
             type: String,
-            enum: ["partner", "user"],
+            enum: ["partner", "user", "admin", "employee"],
             default: "user"
         },
         // Partner specific fields
@@ -37,6 +43,10 @@ const userSchema = new mongoose.Schema(
             required: function () {
                 return this.role === "partner";
             }
+        },
+        canManageVolunteers: {
+            type: Boolean,
+            default: true
         }
     },
     { timestamps: true }

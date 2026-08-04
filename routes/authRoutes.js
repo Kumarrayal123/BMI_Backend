@@ -1,6 +1,6 @@
 import express from "express";
 import { login, register, getAllPartners, unifiedLogin,
-    updatePartner, deletePartner
+    updatePartner, deletePartner, getProfile, updateProfile
 
  } from "../controllers/authController.js";
 
@@ -14,4 +14,9 @@ router.put("/partner/:id", updatePartner);
 router.put("/update-partner/:id", updatePartner);
 // Delete Partner
 router.delete("/partner/:id", deletePartner);
+
+// Profile routes
+router.get("/profile/:id", getProfile);
+router.put("/profile/update", updateProfile);
+
 export default router;

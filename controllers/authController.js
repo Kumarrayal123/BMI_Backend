@@ -240,6 +240,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 import Volunteer from "../models/volunteer.js";
 import axios from "axios";
+import mongoose from "mongoose";
 
 /* =========================================
    REGISTER
@@ -401,7 +402,7 @@ export const unifiedLogin = async (req, res) => {
             }
         }
         
-        if (user) {
+        if (user && user.password) {
             const isPasswordCorrect = await bcrypt.compare(password, user.password);
             if (isPasswordCorrect) {
                 const token = jwt.sign(
@@ -582,6 +583,9 @@ export const updatePartner = async (req, res) => {
         if (mobile) partner.mobile = mobile;
         if (address) partner.address = address;
         if (clinicName) partner.clinicName = clinicName;
+        if (req.body.canManageVolunteers !== undefined) {
+            partner.canManageVolunteers = req.body.canManageVolunteers;
+        }
 
         if (password && password.trim() !== "") {
             partner.password = await bcrypt.hash(password, 12);
@@ -639,4 +643,172 @@ export const deletePartner = async (req, res) => {
       error: error.message,
     });
   }
+};
+
+/* =========================================
+   GET PROFILE
+   ========================================= */
+export const getProfile = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.query;
+
+        if (!id || !role) {
+            return res.status(400).json({ success: false, message: "ID and Role are required" });
+        }
+
+        if (role === "volunteer") {
+            const volunteer = await Volunteer.findById(id).populate("assignedPartner", "name email clinicName");
+            if (!volunteer) {
+                return res.status(404).json({ success: false, message: "Volunteer not found" });
+            }
+            return res.status(200).json({
+                success: true,
+                data: {
+                    id: volunteer._id,
+                    name: volunteer.name,
+                    email: volunteer.email,
+                    phone: volunteer.phone,
+                    address: volunteer.address,
+                    gender: volunteer.gender,
+                    role: volunteer.role || "volunteer",
+                    assignedPartner: volunteer.assignedPartner
+                }
+            });
+        } else {
+            const user = await User.findById(id);
+            if (!user) {
+                return res.status(404).json({ success: false, message: "User not found" });
+            }
+            return res.status(200).json({
+                success: true,
+                data: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    mobile: user.mobile,
+                    address: user.address,
+                    role: user.role,
+                    clinicName: user.clinicName,
+                    department: user.department || ""
+                }
+            });
+        }
+    } catch (err) {
+        console.error("Get Profile Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+/* =========================================
+   UPDATE PROFILE
+   ========================================= */
+export const updateProfile = async (req, res) => {
+    try {
+        const { id, role, name, email, mobile, phone, address, clinicName, gender, password } = req.body;
+
+        if (!id || !role) {
+            return res.status(400).json({ success: false, message: "ID and Role are required" });
+        }
+
+        if (role === "volunteer") {
+            const volunteer = await Volunteer.findById(id);
+            if (!volunteer) {
+                return res.status(404).json({ success: false, message: "Volunteer not found" });
+            }
+
+            if (email && email !== volunteer.email) {
+                const emailExists = await Volunteer.findOne({ email: email.toLowerCase().trim(), _id: { $ne: id } });
+                if (emailExists) {
+                    return res.status(400).json({ success: false, message: "Email already exists" });
+                }
+                volunteer.email = email.toLowerCase().trim();
+            }
+
+            if (name) volunteer.name = name;
+            if (phone || mobile) volunteer.phone = phone || mobile;
+            if (address !== undefined) volunteer.address = address;
+            if (gender) volunteer.gender = gender;
+
+            if (password && password.trim() !== "") {
+                volunteer.password = await bcrypt.hash(password, 12);
+            }
+
+            await volunteer.save();
+            return res.status(200).json({
+                success: true,
+                message: "Profile updated successfully",
+                data: {
+                    id: volunteer._id,
+                    name: volunteer.name,
+                    email: volunteer.email,
+                    phone: volunteer.phone,
+                    address: volunteer.address,
+                    gender: volunteer.gender,
+                    role: volunteer.role || "volunteer"
+                }
+            });
+        } else {
+            let user;
+            const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+            if (isValidObjectId) {
+                user = await User.findById(id);
+            }
+
+            if (!user && email) {
+                user = await User.findOne({ email: email.toLowerCase().trim() });
+            }
+
+            // Create record if admin/employee and not found
+            if (!user && (role === "admin" || role === "employee")) {
+                user = new User({
+                    _id: isValidObjectId ? id : new mongoose.Types.ObjectId(),
+                    email: email ? email.toLowerCase().trim() : "",
+                    role: role,
+                    name: name || "",
+                    mobile: mobile || phone || "",
+                    address: address || ""
+                });
+            }
+
+            if (!user) {
+                return res.status(404).json({ success: false, message: "User not found" });
+            }
+
+            if (email && email !== user.email) {
+                const emailExists = await User.findOne({ email: email.toLowerCase().trim(), _id: { $ne: user._id } });
+                if (emailExists) {
+                    return res.status(400).json({ success: false, message: "Email already exists" });
+                }
+                user.email = email.toLowerCase().trim();
+            }
+
+            if (name) user.name = name;
+            if (mobile || phone) user.mobile = mobile || phone;
+            if (address !== undefined) user.address = address;
+            if (clinicName && role === "partner") user.clinicName = clinicName;
+
+            if (password && password.trim() !== "") {
+                user.password = await bcrypt.hash(password, 12);
+            }
+
+            await user.save();
+            return res.status(200).json({
+                success: true,
+                message: "Profile updated successfully",
+                data: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    mobile: user.mobile,
+                    address: user.address,
+                    role: user.role,
+                    clinicName: user.clinicName
+                }
+            });
+        }
+    } catch (err) {
+        console.error("Update Profile Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 };
