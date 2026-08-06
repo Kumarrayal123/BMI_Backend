@@ -28,10 +28,9 @@ import patientRoutes from "./routes/patientRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import volunteerRoutes from "./routes/volunteerRoutes.js";
 import campMembersRoutes from "./routes/campMembersRoutes.js";
+// ✅ NEW IMPORT
+import uploadRoutes from "./routes/uploadRoutes.js"; 
 import dns from "dns";
-
-
-
 
 dotenv.config();
 
@@ -93,10 +92,13 @@ app.use(cors({
 // Diagnostics
 app.get("/api/ping", (req, res) => res.status(200).send("API IS ACTIVE - PONG"));
 
-// Static Files
-app.use("/reports", express.static(path.join(__dirname, "public/reports")));
+// ✅ 1. SABSE PEHLE STATIC FOLDER SERVE KARO
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// API Routes
+// ✅ 2. UPLOAD ROUTE (Alag se)
+app.use("/api/uploads", uploadRoutes);
+
+// ✅ 3. API ROUTES
 app.use("/api/patients", patientRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/camps", campRoutes);
@@ -106,6 +108,7 @@ app.use("/api/proxy", authProxyRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/volunteers", volunteerRoutes);
 app.use("/api/camp-members", campMembersRoutes);
+
 // Home
 app.get("/", (req, res) => res.json({ message: "BIM API Running" }));
 

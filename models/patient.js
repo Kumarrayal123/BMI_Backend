@@ -121,7 +121,7 @@ const testSchema = new mongoose.Schema({
 ----------------------------- */
 const patientSchema = new mongoose.Schema(
   {
-    // ✅ SALUTATION (NEW FIELD)
+    // ✅ SALUTATION
     salutation: {
       type: String,
       enum: ["Mr.", "Mrs.", "Ms.", "Dr.", "M/s", "Mast.", "Miss", "N/A", ""],
@@ -134,7 +134,7 @@ const patientSchema = new mongoose.Schema(
     contact: String,
     address: String,
     
-    // ✅ CAMP RELATION (IMPORTANT)
+    // ✅ CAMP RELATION
     campId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Camp",
@@ -155,7 +155,13 @@ const patientSchema = new mongoose.Schema(
     },
 
     // ✅ HISTORY (ALL TEST RECORDS)
-    tests: [testSchema]
+    tests: [testSchema],
+
+    // ✅ NEW: PDF URL को स्टोर करने के लिए नया फील्ड
+    reportPdfUrl: {
+      type: String,
+      default: null
+    }
   },
   { timestamps: true }
 );

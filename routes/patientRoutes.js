@@ -337,12 +337,13 @@ const getBMICategory = (bmi) => {
 };
 
 /* -----------------------------------------------------
-  1️⃣ GET ALL PATIENTS (WITH CAMP DETAILS ✅)
+  1️⃣ GET ALL PATIENTS (✅ FIXED: Added reportPdfUrl)
 ------------------------------------------------------ */
 router.get("/", async (req, res) => {
   try {
     const patients = await Patient.find()
       .populate("campId", "name location")
+      .select("+reportPdfUrl")
       .sort({ createdAt: -1 });
 
     res.json(patients);
@@ -352,14 +353,13 @@ router.get("/", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  2️⃣ GET SINGLE PATIENT (WITH CAMP DETAILS ✅)
+  2️⃣ GET SINGLE PATIENT (✅ FIXED: Added reportPdfUrl)
 ------------------------------------------------------ */
 router.get("/:id", async (req, res) => {
   try {
-    const patient = await Patient.findById(req.params.id).populate(
-      "campId",
-      "name location address date time status"
-    );
+    const patient = await Patient.findById(req.params.id)
+      .populate("campId", "name location address date time status")
+      .select("+reportPdfUrl");
 
     if (!patient) {
       return res.status(404).json({ error: "Patient not found" });
@@ -372,7 +372,7 @@ router.get("/:id", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  3️⃣ CREATE PATIENT (WITH SALUTATION ✅)
+  3️⃣ CREATE PATIENT
 ------------------------------------------------------ */
 router.post("/", async (req, res) => {
   try {
@@ -449,7 +449,8 @@ router.post("/", async (req, res) => {
       address,
       campId: finalCampId,
       tests: [],
-      vitals: vitals
+      vitals: vitals,
+      reportPdfUrl: null
     });
 
     res.status(201).json(patient);
@@ -461,7 +462,7 @@ router.post("/", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  4️⃣ UPDATE PATIENT (WITH SALUTATION ✅)
+  4️⃣ UPDATE PATIENT
 ------------------------------------------------------ */
 router.put("/:id", async (req, res) => {
   try {
@@ -503,8 +504,7 @@ router.put("/:id", async (req, res) => {
 });
 
 /* -----------------------------------------------------
-  5️⃣ ADD TEST (WEIGHT / HEIGHT / SUGAR / BP)
-  ✅ ROUTE CHANGE - "/test" se "/tests" karein
+  5️⃣ ADD TEST
 ------------------------------------------------------ */
 router.post("/:id/tests", async (req, res) => {
   try {
