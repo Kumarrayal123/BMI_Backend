@@ -951,6 +951,124 @@
 
 import mongoose from "mongoose";
 import Camp from "../models/camp.js";
+import User from "../models/user.js";
+import Volunteer from "../models/volunteer.js";
+
+// Helper function to safely populate fields in camp documents
+const safePopulateCamps = async (camps) => {
+  if (!camps) return camps;
+  const isArray = Array.isArray(camps);
+  const campList = isArray ? camps : [camps];
+
+  const userIds = new Set();
+  const volunteerIds = new Set();
+
+  campList.forEach(camp => {
+    if (camp.createdBy && mongoose.Types.ObjectId.isValid(camp.createdBy) && String(camp.createdBy).length === 24) {
+      userIds.add(String(camp.createdBy));
+    }
+    if (camp.assignedPartner && mongoose.Types.ObjectId.isValid(camp.assignedPartner) && String(camp.assignedPartner).length === 24) {
+      userIds.add(String(camp.assignedPartner));
+    }
+    if (camp.partners && Array.isArray(camp.partners)) {
+      camp.partners.forEach(p => {
+        if (p && mongoose.Types.ObjectId.isValid(p) && String(p).length === 24) {
+          userIds.add(String(p));
+        }
+      });
+    }
+    if (camp.volunteers && Array.isArray(camp.volunteers)) {
+      camp.volunteers.forEach(v => {
+        if (v && mongoose.Types.ObjectId.isValid(v) && String(v).length === 24) {
+          volunteerIds.add(String(v));
+        }
+      });
+    }
+  });
+
+  const [users, volunteers] = await Promise.all([
+    User.find({ _id: { $in: Array.from(userIds).map(id => new mongoose.Types.ObjectId(id)) } })
+      .select("name email mobile address role clinicName canManageVolunteers")
+      .lean(),
+    Volunteer.find({ _id: { $in: Array.from(volunteerIds).map(id => new mongoose.Types.ObjectId(id)) } })
+      .select("name email phone designation role createdAt gender address")
+      .lean()
+  ]);
+
+  const userMap = {};
+  users.forEach(u => {
+    userMap[String(u._id)] = u;
+  });
+
+  const volunteerMap = {};
+  volunteers.forEach(v => {
+    volunteerMap[String(v._id)] = v;
+  });
+
+  const populatedCamps = campList.map(camp => {
+    const campObj = camp.toObject ? camp.toObject() : JSON.parse(JSON.stringify(camp));
+
+    if (campObj.createdBy) {
+      const idStr = String(campObj.createdBy);
+      if (userMap[idStr]) {
+        campObj.createdBy = userMap[idStr];
+      } else if (mongoose.Types.ObjectId.isValid(campObj.createdBy) && idStr.length === 24) {
+        campObj.createdBy = { _id: campObj.createdBy, name: "Unknown User" };
+      } else {
+        campObj.createdBy = { name: String(campObj.createdBy) };
+      }
+    } else {
+      campObj.createdBy = null;
+    }
+
+    if (campObj.assignedPartner) {
+      const idStr = String(campObj.assignedPartner);
+      if (userMap[idStr]) {
+        campObj.assignedPartner = userMap[idStr];
+      } else if (mongoose.Types.ObjectId.isValid(campObj.assignedPartner) && idStr.length === 24) {
+        campObj.assignedPartner = { _id: campObj.assignedPartner, name: "Unknown Partner" };
+      } else {
+        campObj.assignedPartner = { name: String(campObj.assignedPartner) };
+      }
+    } else {
+      campObj.assignedPartner = null;
+    }
+
+    if (campObj.partners && Array.isArray(campObj.partners)) {
+      campObj.partners = campObj.partners.map(p => {
+        const idStr = String(p);
+        if (userMap[idStr]) {
+          return userMap[idStr];
+        } else if (mongoose.Types.ObjectId.isValid(p) && idStr.length === 24) {
+          return { _id: p, name: "Unknown Partner" };
+        } else {
+          return { name: String(p) };
+        }
+      });
+    } else {
+      campObj.partners = [];
+    }
+
+    if (campObj.volunteers && Array.isArray(campObj.volunteers)) {
+      campObj.volunteers = campObj.volunteers.map(v => {
+        const idStr = String(v);
+        if (volunteerMap[idStr]) {
+          return volunteerMap[idStr];
+        } else if (mongoose.Types.ObjectId.isValid(v) && idStr.length === 24) {
+          return { _id: v, name: "Unknown Volunteer" };
+        } else {
+          return { name: String(v) };
+        }
+      });
+    } else {
+      campObj.volunteers = [];
+    }
+
+    return campObj;
+  });
+
+  return isArray ? populatedCamps : populatedCamps[0];
+};
 
 /* ===========================================================
    CREATE CAMP
@@ -967,7 +1085,8 @@ export const createCamp = async (req, res) => {
       createdBy,
       creatorRole,
       assignedPartner,
-      volunteers
+      volunteers,
+      partners
     } = req.body;
 
     console.log("📥 Creating camp - Received:", {
@@ -977,7 +1096,8 @@ export const createCamp = async (req, res) => {
       time,
       createdBy,
       creatorRole,
-      volunteers
+      volunteers,
+      partners
     });
 
     if (!name || !location || !date || !time) {
@@ -987,54 +1107,59 @@ export const createCamp = async (req, res) => {
       });
     }
 
-    // 🔥 FIX: Handle volunteers - ID aur String dono support
+    let createdByData = null;
+    if (createdBy) {
+      if (mongoose.Types.ObjectId.isValid(createdBy) && String(createdBy).length === 24) {
+        createdByData = new mongoose.Types.ObjectId(createdBy);
+      } else {
+        createdByData = String(createdBy).trim();
+      }
+    }
+
     let volunteerData = [];
     if (volunteers && Array.isArray(volunteers)) {
       volunteerData = volunteers.map(v => {
-        // Agar valid ObjectId hai toh ObjectId store karo
         if (mongoose.Types.ObjectId.isValid(v) && String(v).length === 24) {
           return new mongoose.Types.ObjectId(v);
         }
-        // Warna string store karo
         return String(v).trim();
       });
     } else if (typeof volunteers === 'string') {
       volunteerData = [String(volunteers).trim()];
     }
 
-    // 🔥 FIX: Handle createdBy - ID aur String dono support
-    let createdByData = null;
-    if (createdBy) {
-      // Agar valid ObjectId hai toh ObjectId store karo
-      if (mongoose.Types.ObjectId.isValid(createdBy) && String(createdBy).length === 24) {
-        createdByData = new mongoose.Types.ObjectId(createdBy);
-      } else {
-        // Warna string store karo
-        createdByData = String(createdBy).trim();
-      }
+    let partnerData = [];
+    if (partners && Array.isArray(partners)) {
+      partnerData = partners.map(p => {
+        if (mongoose.Types.ObjectId.isValid(p) && String(p).length === 24) {
+          return new mongoose.Types.ObjectId(p);
+        }
+        return String(p).trim();
+      });
     }
-
-    console.log("✅ Processed:", { createdByData, volunteerData });
 
     let assignedPartnerData = null;
     if (creatorRole === "admin") {
-      assignedPartnerData = assignedPartner ? (mongoose.Types.ObjectId.isValid(assignedPartner) && String(assignedPartner).length === 24 ? new mongoose.Types.ObjectId(assignedPartner) : String(assignedPartner).trim()) : null;
+      if (assignedPartner) {
+        if (mongoose.Types.ObjectId.isValid(assignedPartner) && String(assignedPartner).length === 24) {
+          assignedPartnerData = new mongoose.Types.ObjectId(assignedPartner);
+        } else {
+          assignedPartnerData = String(assignedPartner).trim();
+        }
+      }
     } else if (creatorRole === "partner") {
       assignedPartnerData = createdByData;
     }
 
-    let partnerData = [];
     if (assignedPartnerData) {
-      partnerData.push(assignedPartnerData);
+      const assignedStr = String(assignedPartnerData);
+      const exists = partnerData.some(p => String(p) === assignedStr);
+      if (!exists) {
+        partnerData.push(assignedPartnerData);
+      }
     }
-    if (req.body.partners && Array.isArray(req.body.partners)) {
-      req.body.partners.forEach(p => {
-        const pVal = mongoose.Types.ObjectId.isValid(p) && String(p).length === 24 ? new mongoose.Types.ObjectId(p) : String(p).trim();
-        if (String(pVal) !== String(assignedPartnerData)) {
-          partnerData.push(pVal);
-        }
-      });
-    }
+
+    console.log("✅ Processed:", { createdByData, volunteerData, partnerData, assignedPartnerData });
 
     const camp = new Camp({
       name,
@@ -1070,6 +1195,7 @@ export const createCamp = async (req, res) => {
 /* ===========================================================
    CREATE CAMP BY PARTNER
 =========================================================== */
+
 export const createCampByPartner = async (req, res) => {
     try {
         const {
@@ -1120,8 +1246,7 @@ export const createCampByPartner = async (req, res) => {
                 return String(p).trim();
             });
         }
-        
-        // Ensure the creator partner is in partners list
+
         if (createdByData) {
             const creatorStr = String(createdByData);
             const exists = partnerData.some(p => String(p) === creatorStr);
@@ -1130,7 +1255,6 @@ export const createCampByPartner = async (req, res) => {
             }
         }
 
-        // ✅ IMPORTANT: assignedPartner ko createdBy se set karo
         const camp = await Camp.create({
             name,
             location,
@@ -1139,7 +1263,7 @@ export const createCampByPartner = async (req, res) => {
             time,
             createdBy: createdByData,
             creatorRole: "partner",
-            assignedPartner: createdByData, // ✅ YEH SET KARO
+            assignedPartner: createdByData,
             assignedBy: createdByData,
             partnerAssignedAt: new Date(),
             volunteers: volunteerData,
@@ -1153,6 +1277,7 @@ export const createCampByPartner = async (req, res) => {
         });
 
         console.log("✅ Camp created with assignedPartner:", camp.assignedPartner);
+        console.log("✅ Camp partners:", camp.partners);
 
         res.status(201).json({
             success: true,
@@ -1170,8 +1295,163 @@ export const createCampByPartner = async (req, res) => {
 };
 
 /* ===========================================================
+   🔥🔥🔥 FINAL FIX: GET ASSIGNED CAMPS - NO CAST ERROR
+=========================================================== */
+
+export const getAssignedCamps = async (req, res) => {
+  try {
+    const { partnerId } = req.params;
+
+    console.log("🔍 GET ASSIGNED CAMPS - partnerId:", partnerId);
+
+    if (!partnerId || partnerId === "null" || partnerId === "undefined" || partnerId === "") {
+      console.log("⚠️ Invalid partnerId, returning empty array");
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: []
+      });
+    }
+
+    // 🔥 Sabhi camps fetch karo
+    const allCamps = await Camp.find({}).lean();
+    console.log(`📦 Total camps in DB: ${allCamps.length}`);
+
+    // 🔥 Manual filter - string comparison se
+    const partnerIdStr = String(partnerId).trim();
+    const filteredCamps = allCamps.filter(camp => {
+      // Check assignedPartner
+      if (camp.assignedPartner) {
+        const assignedStr = String(camp.assignedPartner).trim();
+        if (assignedStr === partnerIdStr) {
+          return true;
+        }
+      }
+      
+      // Check createdBy
+      if (camp.createdBy) {
+        const createdStr = String(camp.createdBy).trim();
+        if (createdStr === partnerIdStr) {
+          return true;
+        }
+      }
+      
+      // Check partners array
+      if (camp.partners && Array.isArray(camp.partners)) {
+        const hasPartner = camp.partners.some(p => {
+          if (!p) return false;
+          return String(p).trim() === partnerIdStr;
+        });
+        if (hasPartner) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+
+    console.log(`✅ Found ${filteredCamps.length} camps for partner`);
+
+    filteredCamps.forEach((camp, index) => {
+      console.log(`   ${index + 1}. ${camp.name} - assignedPartner: ${camp.assignedPartner}, createdBy: ${camp.createdBy}`);
+    });
+
+    res.status(200).json({
+      success: true,
+      count: filteredCamps.length,
+      data: filteredCamps
+    });
+
+  } catch (error) {
+    console.log("❌ GET ASSIGNED CAMPS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/* ===========================================================
+   GET ALL CAMPS
+=========================================================== */
+
+export const getAllCamps = async (req, res) => {
+  try {
+    console.log("🔄 Fetching all camps...");
+    
+    const camps = await Camp.find({})
+      .sort({ createdAt: -1 });
+
+    const populatedCamps = await safePopulateCamps(camps);
+
+    console.log(`✅ Found ${populatedCamps.length} camps`);
+    
+    res.status(200).json({
+      success: true,
+      count: populatedCamps.length,
+      data: populatedCamps
+    });
+
+  } catch (error) {
+    console.log("❌ GET ALL CAMPS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/* ===========================================================
+   GET PARTNER CREATED CAMPS - FIXED
+=========================================================== */
+
+export const getPartnerCreatedCamps = async (req, res) => {
+  try {
+    const { partnerId } = req.params;
+
+    console.log("🔍 Getting partner created camps for:", partnerId);
+
+    if (!partnerId || partnerId === "null" || partnerId === "undefined") {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: []
+      });
+    }
+
+    // 🔥 Sabhi camps fetch karo
+    const allCamps = await Camp.find({}).lean();
+    
+    // 🔥 Manual filter - string comparison
+    const partnerIdStr = String(partnerId).trim();
+    const filteredCamps = allCamps.filter(camp => {
+      if (camp.createdBy && String(camp.createdBy).trim() === partnerIdStr) {
+        return true;
+      }
+      return false;
+    });
+
+    console.log(`✅ Found ${filteredCamps.length} created camps`);
+
+    res.status(200).json({
+      success: true,
+      count: filteredCamps.length,
+      data: filteredCamps
+    });
+
+  } catch (error) {
+    console.log("❌ GET PARTNER CREATED CAMPS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/* ===========================================================
    UPDATE CAMP By ADMIN
 =========================================================== */
+
 export const updateCampByAdmin = async (req, res) => {
   try {
     const { campId } = req.params;
@@ -1183,6 +1463,7 @@ export const updateCampByAdmin = async (req, res) => {
       time,
       assignedPartner,
       volunteers,
+      partners,
       status
     } = req.body;
 
@@ -1202,28 +1483,37 @@ export const updateCampByAdmin = async (req, res) => {
     if (time) camp.time = time;
 
     if (assignedPartner !== undefined) {
-      camp.assignedPartner = assignedPartner;
       if (assignedPartner) {
-        let partnerData = [];
-        const pVal = mongoose.Types.ObjectId.isValid(assignedPartner) && String(assignedPartner).length === 24 ? new mongoose.Types.ObjectId(assignedPartner) : String(assignedPartner).trim();
-        partnerData.push(pVal);
-        
-        // Merge with existing partners if any, keeping assignedPartner first
-        if (req.body.partners && Array.isArray(req.body.partners)) {
-          req.body.partners.forEach(p => {
-            const pValOther = mongoose.Types.ObjectId.isValid(p) && String(p).length === 24 ? new mongoose.Types.ObjectId(p) : String(p).trim();
-            if (String(pValOther) !== String(pVal)) {
-              partnerData.push(pValOther);
-            }
-          });
+        let pVal;
+        if (mongoose.Types.ObjectId.isValid(assignedPartner) && String(assignedPartner).length === 24) {
+          pVal = new mongoose.Types.ObjectId(assignedPartner);
+        } else {
+          pVal = String(assignedPartner).trim();
         }
-        camp.partners = partnerData;
+        camp.assignedPartner = pVal;
       } else {
-        camp.partners = [];
+        camp.assignedPartner = null;
       }
     }
 
-    // 🔥 FIX: Handle volunteers - ID aur String dono support
+    if (partners !== undefined && Array.isArray(partners)) {
+      const partnerData = partners.map(p => {
+        if (mongoose.Types.ObjectId.isValid(p) && String(p).length === 24) {
+          return new mongoose.Types.ObjectId(p);
+        }
+        return String(p).trim();
+      });
+      
+      if (camp.assignedPartner) {
+        const assignedStr = String(camp.assignedPartner);
+        const exists = partnerData.some(p => String(p) === assignedStr);
+        if (!exists) {
+          partnerData.push(camp.assignedPartner);
+        }
+      }
+      camp.partners = partnerData;
+    }
+
     if (volunteers !== undefined) {
       let volunteerData = [];
       if (Array.isArray(volunteers)) {
@@ -1252,7 +1542,7 @@ export const updateCampByAdmin = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("UPDATE CAMP BY ADMIN ERROR:", error);
+    console.log("❌ UPDATE CAMP BY ADMIN ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -1263,6 +1553,7 @@ export const updateCampByAdmin = async (req, res) => {
 /* ===========================================================
    UPDATE CAMP By PARTNER
 =========================================================== */
+
 export const updateCampByPartner = async (req, res) => {
   try {
     const { partnerId, campId } = req.params;
@@ -1273,8 +1564,11 @@ export const updateCampByPartner = async (req, res) => {
       date,
       time,
       volunteers,
+      partners,
       status
     } = req.body;
+
+    console.log(`📝 Partner ${partnerId} updating camp ${campId}`);
 
     const camp = await Camp.findById(campId);
 
@@ -1285,7 +1579,6 @@ export const updateCampByPartner = async (req, res) => {
       });
     }
 
-    // 🔥 FIX: createdBy ab Mixed hai, isliye String comparison karo
     const isOwner = String(camp.createdBy) === String(partnerId);
     const isAssigned = camp.assignedPartner && String(camp.assignedPartner) === String(partnerId);
 
@@ -1302,7 +1595,24 @@ export const updateCampByPartner = async (req, res) => {
     if (date) camp.date = date;
     if (time) camp.time = time;
 
-    // 🔥 FIX: Handle volunteers - ID aur String dono support
+    if (partners !== undefined && Array.isArray(partners)) {
+      const partnerData = partners.map(p => {
+        if (mongoose.Types.ObjectId.isValid(p) && String(p).length === 24) {
+          return new mongoose.Types.ObjectId(p);
+        }
+        return String(p).trim();
+      });
+      
+      if (camp.assignedPartner) {
+        const assignedStr = String(camp.assignedPartner);
+        const exists = partnerData.some(p => String(p) === assignedStr);
+        if (!exists) {
+          partnerData.push(camp.assignedPartner);
+        }
+      }
+      camp.partners = partnerData;
+    }
+
     if (volunteers !== undefined) {
       let volunteerData = [];
       if (Array.isArray(volunteers)) {
@@ -1331,7 +1641,7 @@ export const updateCampByPartner = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("UPDATE CAMP BY PARTNER ERROR:", error);
+    console.log("❌ UPDATE CAMP BY PARTNER ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -1339,152 +1649,10 @@ export const updateCampByPartner = async (req, res) => {
   }
 };
 
-/* ===========================================================
-   GET ASSIGNED CAMPS
-=========================================================== */
-export const getAssignedCamps = async (req, res) => {
-  try {
-    const { partnerId } = req.params;
-
-    if (!partnerId || partnerId === "null" || partnerId === "undefined") {
-      return res.status(200).json({
-        success: true,
-        count: 0,
-        data: []
-      });
-    }
-
-    let queryConditions = [
-      { assignedPartner: partnerId },
-      { partners: partnerId },
-      { createdBy: partnerId }
-    ];
-    if (mongoose.Types.ObjectId.isValid(partnerId) && String(partnerId).length === 24) {
-      const objId = new mongoose.Types.ObjectId(partnerId);
-      queryConditions.push({ assignedPartner: objId });
-      queryConditions.push({ partners: objId });
-      queryConditions.push({ createdBy: objId });
-    }
-
-    const camps = await Camp.find({
-      $or: queryConditions
-    })
-      .populate("assignedPartner", "name clinicName role")
-      .populate({ path: "createdBy", model: "User", select: "name clinicName role" })
-      .populate({ path: "partners", model: "User", select: "name clinicName role" })
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: camps.length,
-      data: camps
-    });
-
-  } catch (error) {
-    console.log("GET ASSIGNED CAMPS ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-/* ===========================================================
-   GET ALL CAMPS
-=========================================================== */
-
-export const getAllCamps = async (req, res) => {
-  try {
-    console.log("🔄 Fetching all camps...");
-    
-    // ✅ Simple find without populate to avoid CastError
-    const camps = await Camp.find({})
-      .sort({ createdAt: -1 })
-      .lean();
-
-    console.log(`✅ Found ${camps.length} camps`);
-    
-    res.status(200).json({
-      success: true,
-      count: camps.length,
-      data: camps
-    });
-
-  } catch (error) {
-    console.log("❌ GET ALL CAMPS ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-export const getPartnerCreatedCamps = async (req, res) => {
-  try {
-
-    const { partnerId } = req.params;
-
-    console.log("========== PARTNER CREATED CAMPS ==========");
-    console.log("PartnerId From URL:", partnerId);
-
-    // Total camps
-    const total = await Camp.countDocuments();
-    console.log("Total Camps:", total);
-
-    // Check specific camp
-    const sampleCamp = await Camp.findById("6a4238b471e06b1eb88b369d");
-    console.log("Sample Camp:", sampleCamp);
-
-    if (sampleCamp) {
-      console.log("DB createdBy:", sampleCamp.createdBy);
-      console.log("DB createdBy String:", String(sampleCamp.createdBy));
-      console.log("creatorRole:", sampleCamp.creatorRole);
-    }
-
-    // Find only by createdBy
-    const byCreatedBy = await Camp.find({
-      createdBy: new mongoose.Types.ObjectId(partnerId)
-    });
-
-    console.log("Found by createdBy:", byCreatedBy.length);
-    console.log(byCreatedBy);
-
-    let queryConditions = [ { createdBy: partnerId } ];
-    if (mongoose.Types.ObjectId.isValid(partnerId) && String(partnerId).length === 24) {
-      queryConditions.push({ createdBy: new mongoose.Types.ObjectId(partnerId) });
-    }
-
-    // Find by createdBy + creatorRole
-    const camps = await Camp.find({
-      $or: queryConditions,
-      creatorRole: "partner"
-    })
-      .populate("assignedPartner", "name clinicName role")
-      .populate({ path: "createdBy", model: "User", select: "name clinicName role" })
-      .populate({ path: "partners", model: "User", select: "name clinicName role" })
-      .sort({ createdAt: -1 });
-
-    console.log("Final Result:", camps.length);
-    console.log(camps);
-
-    return res.status(200).json({
-      success: true,
-      count: camps.length,
-      data: camps
-    });
-
-  } catch (error) {
-    console.log("GET PARTNER CREATED CAMPS ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
 /* ===========================================================
    DELETE CAMP BY ADMIN
 =========================================================== */
+
 export const deleteCampByAdmin = async (req, res) => {
   try {
     const { campId } = req.params;
@@ -1506,7 +1674,7 @@ export const deleteCampByAdmin = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("DELETE CAMP BY ADMIN ERROR:", error);
+    console.log("❌ DELETE CAMP BY ADMIN ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -1517,9 +1685,12 @@ export const deleteCampByAdmin = async (req, res) => {
 /* ===========================================================
    DELETE CAMP BY PARTNER
 =========================================================== */
+
 export const deleteCampByPartner = async (req, res) => {
   try {
     const { partnerId, campId } = req.params;
+
+    console.log(`🗑️ Partner ${partnerId} deleting camp ${campId}`);
 
     const camp = await Camp.findById(campId);
 
@@ -1530,7 +1701,6 @@ export const deleteCampByPartner = async (req, res) => {
       });
     }
 
-    // 🔥 FIX: createdBy ab Mixed hai, isliye String comparison karo
     if (String(camp.createdBy) !== String(partnerId)) {
       return res.status(403).json({
         success: false,
@@ -1546,7 +1716,7 @@ export const deleteCampByPartner = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("DELETE CAMP BY PARTNER ERROR:", error);
+    console.log("❌ DELETE CAMP BY PARTNER ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -1554,10 +1724,10 @@ export const deleteCampByPartner = async (req, res) => {
   }
 };
 
-
 /* ===========================================================
    HIDE/ARCHIVE CAMP
 =========================================================== */
+
 export const hideCamp = async (req, res) => {
   try {
     const { campId } = req.params;
@@ -1574,9 +1744,7 @@ export const hideCamp = async (req, res) => {
       });
     }
 
-    // ✅ ONLY update isHidden - DO NOT change status
     camp.isHidden = isHidden !== undefined ? isHidden : true;
-
     await camp.save();
 
     console.log(`✅ Camp ${campId} ${camp.isHidden ? 'hidden' : 'unhidden'} successfully`);
@@ -1588,7 +1756,7 @@ export const hideCamp = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("HIDE CAMP ERROR:", error);
+    console.log("❌ HIDE CAMP ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -1599,6 +1767,7 @@ export const hideCamp = async (req, res) => {
 /* ===========================================================
    UNHIDE/RESTORE CAMP
 =========================================================== */
+
 export const unhideCamp = async (req, res) => {
   try {
     const { campId } = req.params;
@@ -1614,9 +1783,7 @@ export const unhideCamp = async (req, res) => {
       });
     }
 
-    // ✅ ONLY set isHidden to false - DO NOT change status
     camp.isHidden = false;
-
     await camp.save();
 
     console.log(`✅ Camp ${campId} restored successfully`);
@@ -1628,7 +1795,7 @@ export const unhideCamp = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("UNHIDE CAMP ERROR:", error);
+    console.log("❌ UNHIDE CAMP ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -1639,6 +1806,7 @@ export const unhideCamp = async (req, res) => {
 /* ===========================================================
    AUTO-ARCHIVE OLD CAMPS (10+ days)
 =========================================================== */
+
 export const archiveOldCamps = async (req, res) => {
   try {
     const { days = 10 } = req.body;
@@ -1651,7 +1819,6 @@ export const archiveOldCamps = async (req, res) => {
 
     console.log(`Cutoff date: ${cutoffDate.toISOString()}`);
 
-    // Find camps older than cutoff date that are not already hidden
     const oldCamps = await Camp.find({
       $or: [
         { createdAt: { $lt: cutoffDate } },
@@ -1667,7 +1834,6 @@ export const archiveOldCamps = async (req, res) => {
 
     for (const camp of oldCamps) {
       try {
-        // ✅ ONLY set isHidden to true - DO NOT change status
         camp.isHidden = true;
         await camp.save();
         archivedCount++;
@@ -1692,7 +1858,7 @@ export const archiveOldCamps = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ARCHIVE OLD CAMPS ERROR:", error);
+    console.log("❌ ARCHIVE OLD CAMPS ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -1703,22 +1869,22 @@ export const archiveOldCamps = async (req, res) => {
 /* ===========================================================
    GET HIDDEN/ARCHIVED CAMPS
 =========================================================== */
+
 export const getArchivedCamps = async (req, res) => {
   try {
     const camps = await Camp.find({ isHidden: true })
-      .populate("assignedPartner", "name clinicName role")
-      .populate({ path: "createdBy", model: "User", select: "name clinicName role" })
-      .populate({ path: "partners", model: "User", select: "name clinicName role" })
       .sort({ createdAt: -1 });
+
+    const populatedCamps = await safePopulateCamps(camps);
 
     res.status(200).json({
       success: true,
-      count: camps.length,
-      data: camps
+      count: populatedCamps.length,
+      data: populatedCamps
     });
 
   } catch (error) {
-    console.log("GET ARCHIVED CAMPS ERROR:", error);
+    console.log("❌ GET ARCHIVED CAMPS ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message

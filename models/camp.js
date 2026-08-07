@@ -189,9 +189,9 @@ const campSchema = new mongoose.Schema({
         enum: ["admin", "partner"]
     },
 
+    // 🔥🔥🔥 FIX: assignedPartner ko bhi Mixed banao
     assignedPartner: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        type: mongoose.Schema.Types.Mixed,  // ✅ ObjectId aur String dono allow
         default: null
     },
 

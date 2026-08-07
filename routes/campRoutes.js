@@ -99,48 +99,87 @@
 
 
 import express from "express";
-
+import Camp from "../models/camp.js";  // ✅ IMPORT ADDED
 import {
-createCamp,
-getAllCamps,
-createCampByPartner,
-updateCampByAdmin,
-updateCampByPartner,
-getPartnerCreatedCamps,
-getAssignedCamps,
-deleteCampByAdmin,
-deleteCampByPartner,
-hideCamp,
-unhideCamp,
-archiveOldCamps,
-getArchivedCamps
+  createCamp,
+  getAllCamps,
+  createCampByPartner,
+  updateCampByAdmin,
+  updateCampByPartner,
+  getPartnerCreatedCamps,
+  getAssignedCamps,
+  deleteCampByAdmin,
+  deleteCampByPartner,
+  hideCamp,
+  unhideCamp,
+  archiveOldCamps,
+  getArchivedCamps
 } from "../controllers/campController.js";
 
-const router=express.Router();
+const router = express.Router();
 
-router.post("/addcamp",createCamp);
-
-router.get("/allcamps",getAllCamps);
-router.get("/partner-created-camps/:partnerId", getPartnerCreatedCamps);
-router.post("/my-create-camp/:partnerId", createCampByPartner);
+// ============================================================
+// 📌 CREATE CAMPS
+// ============================================================
+router.post("/addcamp", createCamp);
 router.post("/create-by-partner", createCampByPartner);
+
+// ============================================================
+// 📌 GET CAMPS
+// ============================================================
+router.get("/allcamps", getAllCamps);
 router.get("/assigned-camps/:partnerId", getAssignedCamps);
+router.get("/partner-created-camps/:partnerId", getPartnerCreatedCamps);
+router.get("/archived-camps", getArchivedCamps);
+
+// ============================================================
+// 📌 UPDATE CAMPS
+// ============================================================
 router.put("/update-camp/:campId", updateCampByAdmin);
-router.put("/update-partner-camp/:campId", updateCampByAdmin);
-router.put("/update-camp/:partnerId/:campId", updateCampByPartner);
-// ADMIN
+router.put("/update-partner-camp/:partnerId/:campId", updateCampByPartner);
+
+// ============================================================
+// 📌 DELETE CAMPS
+// ============================================================
 router.delete("/delete-camp/:campId", deleteCampByAdmin);
-// PARTNER
-router.delete("/delete-camp/:partnerId/:campId", deleteCampByPartner);
-// Hide/Archive camp
-router.put('/hide-camp/:campId', hideCamp);
+router.delete("/delete-partner-camp/:partnerId/:campId", deleteCampByPartner);
 
-// Unhide/Restore camp
-router.put('/unhide-camp/:campId', unhideCamp);
+// ============================================================
+// 📌 HIDE/ARCHIVE CAMPS
+// ============================================================
+router.put("/hide-camp/:campId", hideCamp);
+router.put("/unhide-camp/:campId", unhideCamp);
 
-// Auto-archive old camps
-router.post('/archive-old-camps', archiveOldCamps);
+// ============================================================
+// 📌 AUTO-ARCHIVE OLD CAMPS
+// ============================================================
+router.post("/archive-old-camps", archiveOldCamps);
 
-// Get archived camps
-router.get('/archived-camps', getArchivedCamps);
+// ============================================================
+// 🔥🔥🔥 EMERGENCY FIX ROUTE
+// ============================================================
+router.get("/assigned-camps-direct/:partnerId", async (req, res) => {
+  try {
+    const { partnerId } = req.params;
+    console.log("🚀 EMERGENCY ROUTE - partnerId:", partnerId);
+    
+    const allCamps = await Camp.find({}).lean();
+    const partnerIdStr = String(partnerId).trim();
+    const filteredCamps = allCamps.filter(camp => {
+      if (camp.assignedPartner && String(camp.assignedPartner).trim() === partnerIdStr) return true;
+      if (camp.createdBy && String(camp.createdBy).trim() === partnerIdStr) return true;
+      if (camp.partners && Array.isArray(camp.partners)) {
+        return camp.partners.some(p => p && String(p).trim() === partnerIdStr);
+      }
+      return false;
+    });
+    
+    console.log(`✅ EMERGENCY - Found ${filteredCamps.length} camps`);
+    res.json({ success: true, count: filteredCamps.length, data: filteredCamps });
+  } catch (error) {
+    console.error("❌ EMERGENCY ERROR:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

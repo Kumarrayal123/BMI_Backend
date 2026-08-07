@@ -17,11 +17,7 @@ export const getCampMembers = async (req, res) => {
 
     const camp = await Camp.findById(campId)
       .populate("assignedPartner", "name email mobile address role clinicName canManageVolunteers")
-      .populate({
-        path: "volunteers",
-        model: "Volunteer",
-        select: "name email phone role createdAt gender address"
-      });
+      .lean();
 
     if (!camp) {
       return res.status(404).json({
@@ -54,17 +50,41 @@ export const getCampMembers = async (req, res) => {
       assignedDate: camp.partnerAssignedAt || camp.createdAt
     } : null;
 
-    // Format volunteer details
-    const volunteersList = camp.volunteers ? camp.volunteers.map(v => ({
-      id: v._id,
-      name: v.name,
-      email: v.email,
-      phone: v.phone,
-      gender: v.gender,
-      address: v.address,
-      role: "volunteer",
-      assignedDate: v.createdAt
-    })) : [];
+    // Safely retrieve volunteer details to avoid CastErrors with legacy string values
+    let volunteersList = [];
+    if (camp.volunteers && camp.volunteers.length > 0) {
+      const validVolIds = camp.volunteers.filter(v => mongoose.Types.ObjectId.isValid(v) && String(v).length === 24);
+      const stringVols = camp.volunteers.filter(v => !(mongoose.Types.ObjectId.isValid(v) && String(v).length === 24));
+
+      const populatedVolunteers = await Volunteer.find({ _id: { $in: validVolIds } })
+        .select("name email phone role createdAt gender address")
+        .lean();
+
+      volunteersList = populatedVolunteers.map(v => ({
+        id: v._id,
+        name: v.name,
+        email: v.email,
+        phone: v.phone,
+        gender: v.gender,
+        address: v.address,
+        role: "volunteer",
+        assignedDate: v.createdAt
+      }));
+
+      // Add string volunteers
+      stringVols.forEach((vName, index) => {
+        volunteersList.push({
+          id: `legacy-${index}`,
+          name: String(vName),
+          email: "",
+          phone: "",
+          gender: "-",
+          address: "-",
+          role: "volunteer",
+          assignedDate: camp.createdAt
+        });
+      });
+    }
 
     res.status(200).json({
       success: true,
