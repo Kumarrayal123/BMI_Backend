@@ -352,6 +352,67 @@ router.get("/", async (req, res) => {
   }
 });
 
+
+
+// =============================================
+// GET ASSIGNED PATIENTS FOR VOLUNTEER (By employeeName)
+// =============================================
+router.get("/assignedpatients", async (req, res) => {
+  try {
+    const { employeeName } = req.query;
+
+    if (!employeeName || employeeName.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "employeeName query parameter is required"
+      });
+    }
+
+    console.log(`🔄 Fetching patients for employee: ${employeeName}`);
+
+    const escapedName = employeeName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
+
+    // Camps fetch karo
+    const assignedCamps = await Camp.find({ 
+      volunteers: { $regex: new RegExp(`^${escapedName}$`, "i") } 
+    }).select('_id');
+
+    // Agar koi camp assign nahi hai
+    if (!assignedCamps || assignedCamps.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: []
+      }); 
+    }
+
+    const campIds = assignedCamps.map(camp => camp._id);
+
+    // Patients fetch karo
+    const patients = await Patient.find({ campId: { $in: campIds } })
+      .populate("campId", "name location")
+      .select("+reportPdfUrl")
+      .sort({ createdAt: -1 });
+
+    console.log(`✅ Found ${patients.length} patients for ${employeeName}`);
+
+    // 🔥 Response mein count add kiya
+    res.status(200).json({
+      success: true,
+      count: patients.length,
+      message: `Patients fetched successfully for ${employeeName}`,
+      data: patients
+    });
+
+  } catch (err) {
+    console.log("❌ GET ASSIGNED PATIENTS ERROR:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to fetch assigned patients",
+      error: err.message 
+    });
+  }
+});
 /* -----------------------------------------------------
   2️⃣ GET SINGLE PATIENT (✅ FIXED: Added reportPdfUrl)
 ------------------------------------------------------ */
@@ -503,9 +564,137 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-/* -----------------------------------------------------
-  5️⃣ ADD TEST
------------------------------------------------------- */
+// /* -----------------------------------------------------
+//   5️⃣ ADD TEST
+// ------------------------------------------------------ */
+// router.post("/:id/tests", async (req, res) => {
+//   try {
+//     const patient = await Patient.findById(req.params.id);
+//     if (!patient) {
+//       return res.status(404).json({ error: "Patient not found" });
+//     }
+
+//     const {
+//       type,
+//       value,
+//       value2,
+//       sugarType,
+//       unit,
+//       doctorVerification,
+//       eyeVisionLeft,
+//       eyeVisionRight,
+//       eyePressureLeft,
+//       eyePressureRight,
+//       eyeColorVision,
+//       eyeCataract,
+//       eyeGlaucoma,
+//       hemoglobin,
+//       whiteBloodCells,
+//       platelets,
+//       cholesterol,
+//       triglycerides,
+//       hba1c,
+//       bmi
+//     } = req.body;
+
+//     if (!type || value === undefined) {
+//       return res.status(400).json({ error: "Invalid test data" });
+//     }
+
+//     const newTest = {
+//       type,
+//       value: parseFloat(value),
+//       date: new Date(),
+//       doctorVerification: doctorVerification || { status: "pending" }
+//     };
+
+//     if (value2 !== undefined && value2 !== null && value2 !== "") {
+//       newTest.value2 = parseFloat(value2);
+//     }
+//     if (sugarType) newTest.sugarType = sugarType;
+//     if (unit) newTest.unit = unit;
+
+//     // Set fallback units based on type if not provided
+//     if (!newTest.unit) {
+//       if (type === "bp") newTest.unit = "mmHg";
+//       if (type === "weight") newTest.unit = "kg";
+//       if (type === "height") newTest.unit = "cm";
+//       if (type === "sugar") newTest.unit = "mg/dL";
+//       if (type === "temperature") newTest.unit = "°F";
+//       if (type === "heart_rate") newTest.unit = "bpm";
+//       if (type === "oxygen") newTest.unit = "%";
+//       if (type === "eye_exam") newTest.unit = "exam";
+//       if (type === "blood_test") newTest.unit = "panel";
+//       if (type === "full_body_checkup") newTest.unit = "checkup";
+//       if (type === "general_checkup") newTest.unit = "checkup";
+//     }
+
+//     if (type === "bp" && !newTest.value2) {
+//       return res.status(400).json({ error: "Diastolic value required" });
+//     }
+
+//     // Copy custom fields if provided
+//     if (eyeVisionLeft !== undefined && eyeVisionLeft !== null && eyeVisionLeft !== "") newTest.eyeVisionLeft = parseFloat(eyeVisionLeft);
+//     if (eyeVisionRight !== undefined && eyeVisionRight !== null && eyeVisionRight !== "") newTest.eyeVisionRight = parseFloat(eyeVisionRight);
+//     if (eyePressureLeft !== undefined && eyePressureLeft !== null && eyePressureLeft !== "") newTest.eyePressureLeft = parseFloat(eyePressureLeft);
+//     if (eyePressureRight !== undefined && eyePressureRight !== null && eyePressureRight !== "") newTest.eyePressureRight = parseFloat(eyePressureRight);
+//     if (eyeColorVision) newTest.eyeColorVision = eyeColorVision;
+//     if (eyeCataract) newTest.eyeCataract = eyeCataract;
+//     if (eyeGlaucoma) newTest.eyeGlaucoma = eyeGlaucoma;
+
+//     if (hemoglobin !== undefined && hemoglobin !== null && hemoglobin !== "") newTest.hemoglobin = parseFloat(hemoglobin);
+//     if (whiteBloodCells !== undefined && whiteBloodCells !== null && whiteBloodCells !== "") newTest.whiteBloodCells = parseFloat(whiteBloodCells);
+//     if (platelets !== undefined && platelets !== null && platelets !== "") newTest.platelets = parseFloat(platelets);
+//     if (cholesterol !== undefined && cholesterol !== null && cholesterol !== "") newTest.cholesterol = parseFloat(cholesterol);
+//     if (triglycerides !== undefined && triglycerides !== null && triglycerides !== "") newTest.triglycerides = parseFloat(triglycerides);
+//     if (hba1c !== undefined && hba1c !== null && hba1c !== "") newTest.hba1c = parseFloat(hba1c);
+//     if (bmi !== undefined && bmi !== null && bmi !== "") newTest.bmi = parseFloat(bmi);
+
+//     patient.tests.push(newTest);
+
+//     /* ---------- UPDATE VITALS ---------- */
+//     if (!patient.vitals) patient.vitals = {};
+
+//     if (type === "weight") patient.vitals.weight = newTest.value;
+//     if (type === "height") patient.vitals.height = newTest.value;
+
+//     if (type === "sugar") {
+//       patient.vitals.sugar = newTest.value;
+//       patient.vitals.sugarType = newTest.sugarType || sugarType || "Random";
+//     }
+
+//     if (type === "bp") {
+//       console.log(`Storing BP: Sys ${newTest.value}, Dia ${newTest.value2}`);
+//       patient.vitals.bpSys = newTest.value;
+//       patient.vitals.bpDia = newTest.value2;
+//     }
+
+//     /* ---------- AUTO BMI ---------- */
+//     const { weight, height } = patient.vitals;
+//     if (weight && height) {
+//       const bmiVal = calculateBMI(weight, height);
+//       patient.vitals.bmi = parseFloat(bmiVal);
+//       patient.vitals.bmiCategory = getBMICategory(bmiVal);
+//     }
+
+//     patient.vitals.updatedAt = new Date();
+
+//     await patient.save();
+
+//     res.json({
+//       success: true,
+//       message: "Test added successfully",
+//       vitals: patient.vitals
+//     });
+
+//   } catch (err) {
+//     console.error("❌ ADD TEST ERROR:", err);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+
+
+
 router.post("/:id/tests", async (req, res) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -513,28 +702,60 @@ router.post("/:id/tests", async (req, res) => {
       return res.status(404).json({ error: "Patient not found" });
     }
 
-    const {
-      type,
-      value,
-      value2,
-      sugarType,
-      unit,
-      doctorVerification,
-      eyeVisionLeft,
-      eyeVisionRight,
-      eyePressureLeft,
-      eyePressureRight,
-      eyeColorVision,
-      eyeCataract,
-      eyeGlaucoma,
-      hemoglobin,
-      whiteBloodCells,
-      platelets,
-      cholesterol,
-      triglycerides,
-      hba1c,
-      bmi
-    } = req.body;
+    // 🔥 NAYA LOGIC: Agar frontend "vitals" object bhej raha hai (Ek hi baar mein sab)
+    if (req.body.vitals) {
+      const v = req.body.vitals;
+      if (!patient.vitals) patient.vitals = {};
+      const currentDate = new Date();
+
+      // 1. Weight
+      if (v.weight) {
+        patient.vitals.weight = parseFloat(v.weight);
+        patient.tests.push({ type: "weight", value: parseFloat(v.weight), date: currentDate, unit: "kg" });
+      }
+
+      // 2. Height
+      if (v.height) {
+        patient.vitals.height = parseFloat(v.height);
+        patient.tests.push({ type: "height", value: parseFloat(v.height), date: currentDate, unit: "cm" });
+      }
+
+      // 3. Sugar
+      if (v.sugar) {
+        patient.vitals.sugar = parseFloat(v.sugar);
+        patient.vitals.sugarType = v.sugarType || "Random";
+        patient.tests.push({ type: "sugar", value: parseFloat(v.sugar), sugarType: v.sugarType || "Random", date: currentDate, unit: "mg/dL" });
+      }
+
+      // 4. BP
+      if (v.systolic && v.diastolic) {
+        patient.vitals.bpSys = parseFloat(v.systolic);
+        patient.vitals.bpDia = parseFloat(v.diastolic);
+        patient.tests.push({ type: "bp", value: parseFloat(v.systolic), value2: parseFloat(v.diastolic), date: currentDate, unit: "mmHg" });
+      }
+
+      // 5. Auto BMI
+      if (patient.vitals.weight && patient.vitals.height) {
+        const hM = patient.vitals.height / 100;
+        const bmiVal = patient.vitals.weight / (hM * hM);
+        patient.vitals.bmi = parseFloat(bmiVal.toFixed(1));
+        patient.vitals.bmiCategory = getBMICategory(bmiVal);
+      }
+
+      patient.vitals.updatedAt = currentDate;
+      await patient.save();
+
+      return res.json({
+        success: true,
+        message: "Vitals updated successfully in one go",
+        vitals: patient.vitals
+      });
+    }
+
+    // ==========================================
+    // PURANA LOGIC (Single Test) - Waise hi rahega
+    // ==========================================
+    const { type, value, value2, sugarType, unit, doctorVerification } = req.body;
 
     if (!type || value === undefined) {
       return res.status(400).json({ error: "Invalid test data" });
@@ -547,77 +768,43 @@ router.post("/:id/tests", async (req, res) => {
       doctorVerification: doctorVerification || { status: "pending" }
     };
 
-    if (value2 !== undefined && value2 !== null && value2 !== "") {
-      newTest.value2 = parseFloat(value2);
-    }
+    if (value2 !== undefined && value2 !== null && value2 !== "") newTest.value2 = parseFloat(value2);
     if (sugarType) newTest.sugarType = sugarType;
     if (unit) newTest.unit = unit;
 
-    // Set fallback units based on type if not provided
     if (!newTest.unit) {
       if (type === "bp") newTest.unit = "mmHg";
       if (type === "weight") newTest.unit = "kg";
       if (type === "height") newTest.unit = "cm";
       if (type === "sugar") newTest.unit = "mg/dL";
-      if (type === "temperature") newTest.unit = "°F";
-      if (type === "heart_rate") newTest.unit = "bpm";
-      if (type === "oxygen") newTest.unit = "%";
-      if (type === "eye_exam") newTest.unit = "exam";
-      if (type === "blood_test") newTest.unit = "panel";
-      if (type === "full_body_checkup") newTest.unit = "checkup";
-      if (type === "general_checkup") newTest.unit = "checkup";
     }
 
     if (type === "bp" && !newTest.value2) {
       return res.status(400).json({ error: "Diastolic value required" });
     }
 
-    // Copy custom fields if provided
-    if (eyeVisionLeft !== undefined && eyeVisionLeft !== null && eyeVisionLeft !== "") newTest.eyeVisionLeft = parseFloat(eyeVisionLeft);
-    if (eyeVisionRight !== undefined && eyeVisionRight !== null && eyeVisionRight !== "") newTest.eyeVisionRight = parseFloat(eyeVisionRight);
-    if (eyePressureLeft !== undefined && eyePressureLeft !== null && eyePressureLeft !== "") newTest.eyePressureLeft = parseFloat(eyePressureLeft);
-    if (eyePressureRight !== undefined && eyePressureRight !== null && eyePressureRight !== "") newTest.eyePressureRight = parseFloat(eyePressureRight);
-    if (eyeColorVision) newTest.eyeColorVision = eyeColorVision;
-    if (eyeCataract) newTest.eyeCataract = eyeCataract;
-    if (eyeGlaucoma) newTest.eyeGlaucoma = eyeGlaucoma;
-
-    if (hemoglobin !== undefined && hemoglobin !== null && hemoglobin !== "") newTest.hemoglobin = parseFloat(hemoglobin);
-    if (whiteBloodCells !== undefined && whiteBloodCells !== null && whiteBloodCells !== "") newTest.whiteBloodCells = parseFloat(whiteBloodCells);
-    if (platelets !== undefined && platelets !== null && platelets !== "") newTest.platelets = parseFloat(platelets);
-    if (cholesterol !== undefined && cholesterol !== null && cholesterol !== "") newTest.cholesterol = parseFloat(cholesterol);
-    if (triglycerides !== undefined && triglycerides !== null && triglycerides !== "") newTest.triglycerides = parseFloat(triglycerides);
-    if (hba1c !== undefined && hba1c !== null && hba1c !== "") newTest.hba1c = parseFloat(hba1c);
-    if (bmi !== undefined && bmi !== null && bmi !== "") newTest.bmi = parseFloat(bmi);
-
     patient.tests.push(newTest);
 
-    /* ---------- UPDATE VITALS ---------- */
     if (!patient.vitals) patient.vitals = {};
-
     if (type === "weight") patient.vitals.weight = newTest.value;
     if (type === "height") patient.vitals.height = newTest.value;
-
     if (type === "sugar") {
       patient.vitals.sugar = newTest.value;
       patient.vitals.sugarType = newTest.sugarType || sugarType || "Random";
     }
-
     if (type === "bp") {
-      console.log(`Storing BP: Sys ${newTest.value}, Dia ${newTest.value2}`);
       patient.vitals.bpSys = newTest.value;
       patient.vitals.bpDia = newTest.value2;
     }
 
-    /* ---------- AUTO BMI ---------- */
-    const { weight, height } = patient.vitals;
-    if (weight && height) {
-      const bmiVal = calculateBMI(weight, height);
-      patient.vitals.bmi = parseFloat(bmiVal);
+    if (patient.vitals.weight && patient.vitals.height) {
+      const hM = patient.vitals.height / 100;
+      const bmiVal = patient.vitals.weight / (hM * hM);
+      patient.vitals.bmi = parseFloat(bmiVal.toFixed(1));
       patient.vitals.bmiCategory = getBMICategory(bmiVal);
     }
 
     patient.vitals.updatedAt = new Date();
-
     await patient.save();
 
     res.json({
@@ -688,5 +875,8 @@ router.patch("/:id/tests/:testId/verify", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
 
 export default router;

@@ -953,6 +953,8 @@ import mongoose from "mongoose";
 import Camp from "../models/camp.js";
 import User from "../models/user.js";
 import Volunteer from "../models/volunteer.js";
+import Patient from "../models/patient.js";
+
 
 // Helper function to safely populate fields in camp documents
 const safePopulateCamps = async (camps) => {
@@ -1889,5 +1891,265 @@ export const getArchivedCamps = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+
+
+// =============================================
+// GET ASSIGNED CAMPS FOR VOLUNTEER (With Patients)
+// =============================================
+export const getAssignedCampsForVolunteer = async (req, res) => {
+  try {
+    const { employeeName } = req.query;
+
+    if (!employeeName || employeeName.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "employeeName query parameter is required"
+      });
+    }
+
+    console.log(`🔄 Fetching camps and patients for employee: ${employeeName}`);
+
+    // 1. Employee ke camps fetch karo
+    const escapedName = employeeName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
+    const query = { 
+      volunteers: { $regex: new RegExp(`^${escapedName}$`, "i") } 
+    };
+
+    const camps = await Camp.find(query).sort({ createdAt: -1 });
+
+    if (!camps || camps.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        message: `No camps found for ${employeeName}`,
+        data: []
+      });
+    }
+
+    // 2. Camps ko populate karo (Partner/Volunteer details ke liye)
+    const populatedCamps = await safePopulateCamps(camps);
+
+    // 3. Un saare camps ki IDs nikaalo
+    const campIds = populatedCamps.map(camp => camp._id);
+
+    // 4. Ek hi query mein un saare camps ke patients fetch karo
+    const allPatients = await Patient.find({ campId: { $in: campIds } })
+      .populate("campId", "name location")
+      .select("+reportPdfUrl")
+      .sort({ createdAt: -1 })
+      .lean(); // Lean use karenge taaki plain JSON object mile aur modify karna easy ho
+
+    // 5. Ek map banayo (Camp ID => Patients Array) taaki jaldi merge ho sake
+    const patientsByCampId = {};
+    allPatients.forEach(patient => {
+      // patient.campId populated hai, toh iski _id nikaalo
+      const cId = String(patient.campId?._id || patient.campId);
+      if (!patientsByCampId[cId]) {
+        patientsByCampId[cId] = [];
+      }
+      patientsByCampId[cId].push(patient);
+    });
+
+    // 6. Har camp ke object mein uske respective patients daal do
+    const campsWithPatients = populatedCamps.map(camp => {
+      const campObj = camp.toObject ? camp.toObject() : camp; // Mongoose document ko plain object banaya
+      const cId = String(campObj._id);
+      
+      return {
+        ...campObj,
+        patients: patientsByCampId[cId] || [] // Agar us camp mein patient nahi hai toh empty array
+      };
+    });
+
+    console.log(`✅ Found ${campsWithPatients.length} camps for ${employeeName}`);
+
+    // 7. Response bhejo
+    res.status(200).json({
+      success: true,
+      count: campsWithPatients.length,
+      message: `Camps and patients fetched successfully for ${employeeName}`,
+      data: campsWithPatients
+    });
+
+  } catch (error) {
+    console.log("❌ GET ASSIGNED CAMPS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch assigned camps",
+      error: error.message
+    });
+  }
+};
+
+
+
+// Helper: Camp Status nikalne ke liye
+const getCampStatus = (date, time) => {
+  if (!date) return "upcoming";
+  const now = new Date();
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
+  const campDate = new Date(date);
+  campDate.setHours(0,0,0,0);
+
+  if (campDate.getTime() === today.getTime()) {
+    // Agar aaj ka hai, toh check karo time nikal gaya kya (roughly)
+    return "today"; 
+  }
+  if (campDate > today) return "upcoming";
+  return "completed";
+};
+
+// =============================================
+// GET VOLUNTEER DASHBOARD (Only Stats & Charts)
+// =============================================
+export const getVolunteerDashboard = async (req, res) => {
+  try {
+    const { employeeName } = req.query;
+
+    if (!employeeName || employeeName.trim() === "") {
+      return res.status(400).json({ success: false, message: "employeeName is required" });
+    }
+
+    const escapedName = employeeName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // 1. Fetch Camps
+    const camps = await Camp.find({
+      volunteers: { $regex: new RegExp(`^${escapedName}$`, "i") }
+    }).lean();
+
+    if (!camps || camps.length === 0) {
+      return res.status(200).json({
+        success: true,
+        stats: { totalCamps: 0, activeCamps: 0, upcomingCamps: 0, totalPatients: 0, screenedPatients: 0 },
+        charts: {
+          campDistribution: { live: 0, today: 0, upcoming: 0, completed: 0 },
+          campParticipation: [],
+          bmiDistribution: [],
+          healthMetrics: { bp: [], sugar: [] }
+        }
+      });
+    }
+
+    // 2. Fetch Patients (sirf ID, tests aur vitals taaki light rahe)
+    const campIds = camps.map(c => c._id);
+    const patients = await Patient.find({ campId: { $in: campIds } })
+      .select('campId tests vitals')
+      .lean();
+
+    // 3. Variables Setup
+    let liveCount = 0, todayCount = 0, upcomingCount = 0, completedCount = 0;
+    let bmiCount = { Underweight: 0, Healthy: 0, Overweight: 0, Obese: 0 };
+    let bpCount = { Normal: 0, Elevated: 0, High: 0 };
+    let sugarCount = { Normal: 0, Borderline: 0, High: 0 };
+    let participationData = [];
+
+    // 4. Camp Stats & Participation Calculate karo
+    camps.forEach(camp => {
+      const status = getCampStatus(camp.date, camp.time);
+      if (status === 'today') todayCount++;
+      else if (status === 'upcoming') upcomingCount++;
+      else if (status === 'completed') completedCount++;
+      // Filhal 'live' ka koi proper logic nahi hai, toh 0 hi rakh rahe hain
+      
+      const cPatients = patients.filter(p => String(p.campId) === String(camp._id));
+      
+      participationData.push({
+        campName: camp.name,
+        patients: cPatients.length,
+        screened: cPatients.filter(p => p.tests && p.tests.length > 0).length
+      });
+    });
+
+    // 5. Health Metrics Calculate karo (Har patient ka latest data)
+    patients.forEach(p => {
+      // BMI Chart
+      if (p.vitals && p.vitals.bmiCategory) {
+        if (bmiCount[p.vitals.bmiCategory] !== undefined) {
+          bmiCount[p.vitals.bmiCategory]++;
+        }
+      }
+
+      // BP & Sugar Chart
+      if (p.tests && p.tests.length > 0) {
+        // Reverse karke latest test nikaalo
+        const reversedTests = [...p.tests].reverse();
+
+        const lastBp = reversedTests.find(t => t.type === 'bp');
+        if (lastBp && lastBp.value && lastBp.value2) {
+          if (lastBp.value > 140 || lastBp.value2 > 90) bpCount.High++;
+          else if (lastBp.value > 120 || lastBp.value2 > 80) bpCount.Elevated++;
+          else bpCount.Normal++;
+        }
+
+        const lastSugar = reversedTests.find(t => t.type === 'sugar');
+        if (lastSugar && lastSugar.value) {
+          if (lastSugar.value > 200) sugarCount.High++;
+          else if (lastSugar.value > 140) sugarCount.Borderline++;
+          else sugarCount.Normal++;
+        }
+      }
+    });
+
+    const screenedPatientsCount = patients.filter(p => p.tests && p.tests.length > 0).length;
+
+    // 6. Charts ka Array Format (Recharts/Chart.js ke liye ready)
+    const bmiChartData = [
+      { name: "Underweight", value: bmiCount.Underweight },
+      { name: "Healthy", value: bmiCount.Healthy },
+      { name: "Overweight", value: bmiCount.Overweight },
+      { name: "Obese", value: bmiCount.Obese },
+    ];
+
+    const bpChartData = [
+      { name: "Normal", value: bpCount.Normal },
+      { name: "Elevated", value: bpCount.Elevated },
+      { name: "High", value: bpCount.High },
+    ];
+
+    const sugarChartData = [
+      { name: "Normal", value: sugarCount.Normal },
+      { name: "Borderline", value: sugarCount.Borderline },
+      { name: "High", value: sugarCount.High },
+    ];
+
+    // 7. Final Response
+    res.status(200).json({
+      success: true,
+      data: {
+        // Top Cards
+        stats: {
+          totalCamps: camps.length,
+          activeCamps: todayCount, // Active = aaj ke camps
+          upcomingCamps: upcomingCount,
+          totalPatients: patients.length,
+          screenedPatients: screenedPatientsCount
+        },
+        
+        // Charts Data
+        charts: {
+          campDistribution: {
+            live: liveCount,
+            today: todayCount,
+            upcoming: upcomingCount,
+            completed: completedCount
+          },
+          campParticipation: participationData,
+          bmiDistribution: bmiChartData,
+          healthMetrics: {
+            bp: bpChartData,
+            sugar: sugarChartData
+          }
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ DASHBOARD API ERROR:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch dashboard data", error: error.message });
   }
 };

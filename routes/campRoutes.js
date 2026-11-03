@@ -113,7 +113,9 @@ import {
   hideCamp,
   unhideCamp,
   archiveOldCamps,
-  getArchivedCamps
+  getArchivedCamps,
+  getAssignedCampsForVolunteer,
+  getVolunteerDashboard
 } from "../controllers/campController.js";
 
 const router = express.Router();
@@ -154,6 +156,11 @@ router.put("/unhide-camp/:campId", unhideCamp);
 // 📌 AUTO-ARCHIVE OLD CAMPS
 // ============================================================
 router.post("/archive-old-camps", archiveOldCamps);
+
+router.get("/assignedcamps", getAssignedCampsForVolunteer);
+
+router.get("/getvolunteerdashboard", getVolunteerDashboard);
+
 
 // ============================================================
 // 🔥🔥🔥 EMERGENCY FIX ROUTE
