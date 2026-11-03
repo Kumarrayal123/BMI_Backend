@@ -819,6 +819,112 @@ router.post("/:id/tests", async (req, res) => {
   }
 });
 
+
+
+/* -----------------------------------------------------
+  UPDATE PATIENT TEST
+------------------------------------------------------ */
+router.put("/:id/updatetests", async (req, res) => {
+  try {
+    const { testId, type, value, value2, sugarType, unit, doctorVerification } = req.body;
+
+    console.log("========== UPDATE PATIENT TEST ==========");
+    console.log("Patient ID:", req.params.id);
+    console.log("Test ID:", testId);
+    console.log("Request Body:", req.body);
+
+    if (!testId) {
+      return res.status(400).json({ error: "Test ID is required" });
+    }
+
+    const patient = await Patient.findById(req.params.id);
+
+    if (!patient) {
+      return res.status(404).json({ error: "Patient not found" });
+    }
+
+    const test = patient.tests.id(testId);
+
+    if (!test) {
+      return res.status(404).json({ error: "Test not found" });
+    }
+
+    if (type !== undefined) test.type = type;
+    if (value !== undefined) test.value = parseFloat(value);
+    if (value2 !== undefined) {
+      test.value2 = value2 === "" || value2 === null ? undefined : parseFloat(value2);
+    }
+    if (sugarType !== undefined) test.sugarType = sugarType;
+    if (unit !== undefined) test.unit = unit;
+    if (doctorVerification !== undefined) {
+      test.doctorVerification = doctorVerification;
+    }
+
+    test.date = new Date();
+
+    // Default unit
+    if (!test.unit) {
+      if (test.type === "bp") test.unit = "mmHg";
+      if (test.type === "weight") test.unit = "kg";
+      if (test.type === "height") test.unit = "cm";
+      if (test.type === "sugar") test.unit = "mg/dL";
+    }
+
+    // BP validation
+    if (test.type === "bp" && (test.value2 === undefined || test.value2 === null)) {
+      return res.status(400).json({ error: "Diastolic value required" });
+    }
+
+    // Update patient vitals
+    if (!patient.vitals) patient.vitals = {};
+
+    if (test.type === "weight") {
+      patient.vitals.weight = test.value;
+    }
+
+    if (test.type === "height") {
+      patient.vitals.height = test.value;
+    }
+
+    if (test.type === "sugar") {
+      patient.vitals.sugar = test.value;
+      patient.vitals.sugarType = test.sugarType || "Random";
+    }
+
+    if (test.type === "bp") {
+      patient.vitals.bpSys = test.value;
+      patient.vitals.bpDia = test.value2;
+    }
+
+    // Recalculate BMI
+    if (patient.vitals.weight && patient.vitals.height) {
+      const hM = patient.vitals.height / 100;
+      const bmiVal = patient.vitals.weight / (hM * hM);
+
+      patient.vitals.bmi = parseFloat(bmiVal.toFixed(1));
+      patient.vitals.bmiCategory = getBMICategory(bmiVal);
+    }
+
+    patient.vitals.updatedAt = new Date();
+
+    await patient.save();
+
+    console.log("Updated Test:", test);
+    console.log("Updated Vitals:", patient.vitals);
+
+    return res.json({
+      success: true,
+      message: "Test updated successfully",
+      data: test,
+      vitals: patient.vitals
+    });
+
+  } catch (err) {
+    console.error("❌ UPDATE PATIENT TEST ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* -----------------------------------------------------
   6️⃣ GET ALL TESTS OF PATIENT
 ------------------------------------------------------ */
